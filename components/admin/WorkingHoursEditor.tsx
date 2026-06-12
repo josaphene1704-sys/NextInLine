@@ -63,7 +63,7 @@ export function WorkingHoursEditor({ schedules, interval, onChange }: Props) {
             </button>
 
             {active ? (
-              <div className="flex items-center gap-2">
+              <div dir="ltr" className="flex items-center gap-2">
                 <Input
                   type="time"
                   value={sched.start}

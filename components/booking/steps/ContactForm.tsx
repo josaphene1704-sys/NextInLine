@@ -5,10 +5,10 @@ import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useLang } from "@/contexts/LanguageContext";
 import { formatPrice } from "@/lib/utils";
+import { calcFinalPrice, HairDetailsData } from "@/lib/hair-details";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { ChevronRight, Loader2 } from "lucide-react";
 
 interface TimeSlot {
@@ -25,8 +25,10 @@ interface Props {
   customerName: string;
   customerPhone: string;
   notes: string;
+  hairDetails: HairDetailsData;
   onChange: (patch: { customerName?: string; customerPhone?: string; notes?: string }) => void;
   onSuccess: (appointmentId: Id<"appointments">) => void;
+  onPaymentRequired: () => void;
   onBack: () => void;
 }
 
@@ -58,14 +60,18 @@ export default function ContactForm({
   customerName,
   customerPhone,
   notes,
+  hairDetails,
   onChange,
   onSuccess,
+  onPaymentRequired,
   onBack,
 }: Props) {
   const { lang, t } = useLang();
   const createAppointment = useMutation(api.appointments.createAppointment);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const depositAmount = service.depositAmount ?? 0;
 
   const locale = lang === "ar" ? "ar-IL" : "he-IL";
   const [y, m, d] = date.split("-").map(Number);
@@ -79,6 +85,14 @@ export default function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim()) return;
+
+    // Deposit required → navigate to the payment screen without writing to Convex yet.
+    // The appointment is created by DepositPayment only after payment succeeds.
+    if (depositAmount > 0) {
+      onPaymentRequired();
+      return;
+    }
+
     setError(null);
     setSubmitting(true);
     try {
@@ -89,6 +103,7 @@ export default function ContactForm({
         customerPhone: customerPhone.trim(),
         startTime: slot.startTime,
         notes: notes.trim() || undefined,
+        hairDetails: Object.keys(hairDetails).length > 0 ? hairDetails : undefined,
       });
       onSuccess(id);
     } catch (err) {
@@ -106,8 +121,8 @@ export default function ContactForm({
       </div>
 
       {/* Booking summary card */}
-      <Card className="mb-6 bg-accent/25 border-primary/20">
-        <CardContent className="py-4">
+      <div className="glass-panel mb-6 bg-primary/[0.03] border-primary/20 px-5 py-4">
+        <div className="py-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             {t(labels.summary)}
           </p>
@@ -130,11 +145,11 @@ export default function ContactForm({
             </div>
             <div className="flex justify-between gap-4 border-t pt-2 mt-1">
               <span className="text-muted-foreground">{t(labels.price)}</span>
-              <span className="font-bold text-primary text-base">{formatPrice(service.price)}</span>
+              <span className="font-bold text-primary text-base">{formatPrice(calcFinalPrice(service, hairDetails.hairLength))}</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Contact form */}
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -173,13 +188,19 @@ export default function ContactForm({
             onChange={(e) => onChange({ notes: e.target.value })}
             placeholder={t(labels.notesPlaceholder)}
             rows={2}
-            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 resize-none"
+            className="flex w-full glass-input rounded-xl px-3.5 py-2.5 text-sm placeholder:text-muted-foreground disabled:opacity-50 resize-none"
           />
         </div>
 
         {error && (
           <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-3 py-2.5">
             {error}
+          </p>
+        )}
+
+        {depositAmount > 0 && (
+          <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 text-center leading-relaxed">
+            לתשומת לבך, לביצוע הזמנה זו נדרשת מקדמה על סך {formatPrice(depositAmount)}
           </p>
         )}
 
@@ -190,7 +211,11 @@ export default function ContactForm({
           </Button>
           <Button type="submit" disabled={submitting} className="flex-1 gap-2">
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-            {submitting ? t(labels.submitting) : t(labels.submit)}
+            {submitting
+              ? t(labels.submitting)
+              : depositAmount > 0
+                ? "המשך לתשלום מקדמה"
+                : t(labels.submit)}
           </Button>
         </div>
       </form>

@@ -1,6 +1,7 @@
 import { internalQuery, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 import {
   generateAvailableSlots,
   normalizeDaySchedules,
@@ -100,7 +101,16 @@ export const getAvailableSlots = query({
       .filter((q) => q.neq(q.field("status"), "cancelled"))
       .collect();
 
-    // 7. Generate available slots.
+    // 7. Extend each existing appointment's end by its service buffer.
+    const bookedWindows = await Promise.all(
+      existingAppointments.map(async (appt) => {
+        const svc = await ctx.db.get(appt.serviceId);
+        const bufferMs = (svc?.bufferMinutes ?? 0) * 60_000;
+        return { startTime: appt.startTime, endTime: appt.endTime + bufferMs };
+      })
+    );
+
+    // 8. Generate available slots.
     const slotInterval = schedule.slotIntervalMinutes ?? 30;
 
     const slots = generateAvailableSlots(
@@ -109,10 +119,7 @@ export const getAvailableSlots = query({
       workingEnd,
       service.duration,
       slotInterval,
-      existingAppointments.map(({ startTime, endTime }) => ({
-        startTime,
-        endTime,
-      }))
+      bookedWindows
     );
 
     return {
@@ -132,6 +139,18 @@ export const getAvailableSlots = query({
  * against the race condition where two users pick the same slot simultaneously.
  * Convex mutations are serialised per document, so this check is safe.
  */
+const hairDetailsValidator = v.optional(v.object({
+  hairLength: v.optional(v.string()),
+  hairCondition: v.optional(v.string()),
+  bleachHistory: v.optional(v.string()),
+  grayHairPercentage: v.optional(v.string()),
+  previousKeratin: v.optional(v.string()),
+  currentHairPhotoStorageId: v.optional(v.string()),
+  desiredHairPhotoStorageId: v.optional(v.string()),
+  currentHairColorCode: v.optional(v.string()),
+  desiredHairColorCode: v.optional(v.string()),
+}));
+
 export const createAppointment = mutation({
   args: {
     barberId: v.id("barbers"),
@@ -140,9 +159,10 @@ export const createAppointment = mutation({
     customerPhone: v.string(),
     startTime: v.number(),
     notes: v.optional(v.string()),
+    hairDetails: hairDetailsValidator,
   },
   handler: async (ctx, args) => {
-    const { barberId, serviceId, customerName, customerPhone, startTime, notes } =
+    const { barberId, serviceId, customerName, customerPhone, startTime, notes, hairDetails } =
       args;
 
     // ── Input validation ──────────────────────────────────────────────────
@@ -188,7 +208,16 @@ export const createAppointment = mutation({
       .filter((q) => q.neq(q.field("status"), "cancelled"))
       .collect();
 
-    const hasConflict = sameDay.some(
+    // Extend each booked window by its service buffer before checking overlap.
+    const sameDayExtended = await Promise.all(
+      sameDay.map(async (a) => {
+        const svc = await ctx.db.get(a.serviceId);
+        const bufferMs = (svc?.bufferMinutes ?? 0) * 60_000;
+        return { startTime: a.startTime, endTime: a.endTime + bufferMs };
+      })
+    );
+
+    const hasConflict = sameDayExtended.some(
       (a) => a.startTime < endTime && a.endTime > startTime
     );
 
@@ -209,6 +238,7 @@ export const createAppointment = mutation({
       endTime,
       status: "pending",
       notes,
+      hairDetails,
     });
 
     // Schedule the WhatsApp confirmation — fires immediately after this
@@ -309,7 +339,28 @@ export const getRange = query({
           ctx.db.get(appt.barberId),
           ctx.db.get(appt.serviceId),
         ]);
-        return { ...appt, barber, service };
+        const { hairDetails: rawHairDetails, ...rest } = appt;
+        const hairDetails = rawHairDetails
+          ? {
+              hairLength:         rawHairDetails.hairLength,
+              hairCondition:      rawHairDetails.hairCondition,
+              bleachHistory:      rawHairDetails.bleachHistory,
+              grayHairPercentage: rawHairDetails.grayHairPercentage,
+              previousKeratin:    rawHairDetails.previousKeratin,
+              currentHairColorCode: rawHairDetails.currentHairColorCode,
+              desiredHairColorCode: rawHairDetails.desiredHairColorCode,
+              currentHairPhotoUrl: rawHairDetails.currentHairPhotoStorageId
+                ? await ctx.storage.getUrl(rawHairDetails.currentHairPhotoStorageId as Id<"_storage">)
+                : null,
+              desiredHairPhotoUrl: rawHairDetails.desiredHairPhotoStorageId
+                ? await ctx.storage.getUrl(rawHairDetails.desiredHairPhotoStorageId as Id<"_storage">)
+                : null,
+            }
+          : undefined;
+        const serviceForAdmin = service
+          ? { name: service.name, price: service.price, requiresHairDetails: service.requiresHairDetails }
+          : null;
+        return { ...rest, barber, service: serviceForAdmin, hairDetails };
       })
     );
   },
@@ -344,7 +395,28 @@ export const getUpcoming = query({
           ctx.db.get(appt.barberId),
           ctx.db.get(appt.serviceId),
         ]);
-        return { ...appt, barber, service };
+        const { hairDetails: rawHairDetails, ...rest } = appt;
+        const hairDetails = rawHairDetails
+          ? {
+              hairLength:         rawHairDetails.hairLength,
+              hairCondition:      rawHairDetails.hairCondition,
+              bleachHistory:      rawHairDetails.bleachHistory,
+              grayHairPercentage: rawHairDetails.grayHairPercentage,
+              previousKeratin:    rawHairDetails.previousKeratin,
+              currentHairColorCode: rawHairDetails.currentHairColorCode,
+              desiredHairColorCode: rawHairDetails.desiredHairColorCode,
+              currentHairPhotoUrl: rawHairDetails.currentHairPhotoStorageId
+                ? await ctx.storage.getUrl(rawHairDetails.currentHairPhotoStorageId as Id<"_storage">)
+                : null,
+              desiredHairPhotoUrl: rawHairDetails.desiredHairPhotoStorageId
+                ? await ctx.storage.getUrl(rawHairDetails.desiredHairPhotoStorageId as Id<"_storage">)
+                : null,
+            }
+          : undefined;
+        const serviceForAdmin = service
+          ? { name: service.name, price: service.price, requiresHairDetails: service.requiresHairDetails }
+          : null;
+        return { ...rest, barber, service: serviceForAdmin, hairDetails };
       })
     );
   },
@@ -364,6 +436,48 @@ export const getAppointmentDetails = internalQuery({
       ctx.db.get(appt.businessId),
     ]);
     return { appt, barber, service, business };
+  },
+});
+
+// ─── getCustomerProfile ───────────────────────────────────────────────────────
+
+/**
+ * Full appointment history for a customer, enriched with barber/service/business
+ * and resolved photo URLs. Used by the customer profile page and the admin drawer.
+ */
+export const getCustomerProfile = query({
+  args: { customerPhone: v.string() },
+  handler: async (ctx, { customerPhone }) => {
+    if (!customerPhone.trim()) return [];
+
+    const appointments = await ctx.db
+      .query("appointments")
+      .withIndex("by_customer", (q) => q.eq("customerPhone", customerPhone.trim()))
+      .order("desc")
+      .take(200);
+
+    return await Promise.all(
+      appointments.map(async (appt) => {
+        const [barber, service, business] = await Promise.all([
+          ctx.db.get(appt.barberId),
+          ctx.db.get(appt.serviceId),
+          ctx.db.get(appt.businessId),
+        ]);
+        const { hairDetails: rawHd, ...rest } = appt;
+        const hairDetails = rawHd
+          ? {
+              ...rawHd,
+              currentHairPhotoUrl: rawHd.currentHairPhotoStorageId
+                ? await ctx.storage.getUrl(rawHd.currentHairPhotoStorageId as Id<"_storage">)
+                : null,
+              desiredHairPhotoUrl: rawHd.desiredHairPhotoStorageId
+                ? await ctx.storage.getUrl(rawHd.desiredHairPhotoStorageId as Id<"_storage">)
+                : null,
+            }
+          : undefined;
+        return { ...rest, barber, service, business, hairDetails };
+      })
+    );
   },
 });
 

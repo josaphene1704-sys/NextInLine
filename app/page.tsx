@@ -1,10 +1,14 @@
 "use client";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useLang } from "@/contexts/LanguageContext";
 import BookingWizard from "@/components/booking/BookingWizard";
 import AuthWidget from "@/components/AuthWidget";
-import { Sparkles, MapPin, Phone } from "lucide-react";
+import { AdminPasswordModal } from "@/components/AdminPasswordModal";
+import { Sparkles, MapPin, Phone, AlertCircle } from "lucide-react";
+import { GallerySection } from "@/components/GallerySection";
+import { GalleryPreviewButton } from "@/components/GalleryPreviewButton";
 import Image from "next/image";
 
 function LanguageToggle() {
@@ -12,7 +16,7 @@ function LanguageToggle() {
   return (
     <button
       onClick={() => setLang(lang === "he" ? "ar" : "he")}
-      className="flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs font-semibold hover:bg-accent transition-colors"
+      className="glass-badge flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
       aria-label="Toggle language"
     >
       {lang === "he" ? "العربية" : "עברית"}
@@ -24,11 +28,13 @@ export default function Home() {
   const { t } = useLang();
   const businesses = useQuery(api.businesses.getAll);
   const business = businesses?.[0];
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen">
       {/* Sticky header */}
-      <header className="sticky top-0 z-20 border-b bg-card/90 backdrop-blur-sm">
+      <header className="sticky top-0 z-20 glass-header">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             {business?.logoUrl ? (
@@ -49,12 +55,12 @@ export default function Home() {
           <div className="flex items-center gap-2 shrink-0">
             <AuthWidget />
             <LanguageToggle />
-            <a
-              href="/admin"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors border border-border/60 rounded-full px-3 py-1.5 font-medium"
+            <button
+              onClick={() => setAdminModalOpen(true)}
+              className="glass-badge text-xs text-muted-foreground hover:text-foreground rounded-full px-3 py-1.5 font-medium"
             >
               ניהול
-            </a>
+            </button>
           </div>
         </div>
       </header>
@@ -106,12 +112,11 @@ export default function Home() {
                 </span>
               )}
             </div>
-            <a
-              href="/admin"
-              className="mt-4 inline-block text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-            >
-              ניהול העסק
-            </a>
+            {/* Gallery preview button */}
+            <GalleryPreviewButton
+              businessId={business._id}
+              onClick={() => setShowGallery(true)}
+            />
           </div>
         </div>
       )}
@@ -131,8 +136,33 @@ export default function Home() {
         </div>
       )}
 
-      {/* Booking wizard */}
-      {business && <BookingWizard businessId={business._id} />}
+      {/* Gallery — shown only when user clicks the preview button */}
+      {business && showGallery && (
+        <GallerySection
+          businessId={business._id}
+          onClose={() => setShowGallery(false)}
+        />
+      )}
+
+      {/* Booking wizard — only when shop is active */}
+      {business && business.isActive !== false && (
+        <BookingWizard businessId={business._id} />
+      )}
+
+      {/* Suspended shop message */}
+      {business && business.isActive === false && (
+        <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-lg font-semibold mb-2">העמוד אינו זמין כרגע</h2>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            דף ההזמנות אינו זמין כרגע. אנא נסי שנית מאוחר יותר.
+          </p>
+        </div>
+      )}
+
+      <AdminPasswordModal open={adminModalOpen} onOpenChange={setAdminModalOpen} />
     </main>
   );
 }

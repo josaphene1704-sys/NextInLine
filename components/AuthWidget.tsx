@@ -8,6 +8,7 @@ import { useLang } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "next/navigation";
 import { X, UserCircle2, Loader2, MessageCircle, ChevronRight } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ const L = {
 export default function AuthWidget() {
   const { user, login, logout } = useAuth();
   const { t, lang } = useLang();
+  const router = useRouter();
   const sendOtp = useAction(api.auth.sendOtp);
 
   const [open, setOpen]       = useState(false);
@@ -263,10 +265,14 @@ export default function AuthWidget() {
     <>
       {/* Header widget */}
       {user ? (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            {lang === "ar" ? `مرحباً، ${user.name}` : `שלום, ${user.name}`}
-          </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => router.push("/profile")}
+            className="text-xs bg-primary/10 text-primary rounded-full px-3 py-1.5 font-semibold hover:bg-primary/20 transition-colors flex items-center gap-1"
+          >
+            <UserCircle2 className="w-3.5 h-3.5" />
+            {lang === "ar" ? user.name.split(" ")[0] : user.name.split(" ")[0]}
+          </button>
           <button onClick={logout}
             className="text-xs border border-border/60 rounded-full px-3 py-1.5 font-medium hover:bg-accent transition-colors">
             {t(L.logoutBtn)}

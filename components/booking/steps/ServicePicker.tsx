@@ -27,8 +27,8 @@ export default function ServicePicker({ businessId, selectedId, onSelect }: Prop
     <div>
       <div className="text-center mb-7">
         <div className="flex justify-center mb-3">
-          <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-primary" />
+          <div className="w-11 h-11 rounded-full step-node-active flex items-center justify-center">
+            <Sparkles className="w-5 h-5" />
           </div>
         </div>
         <h2 className="text-2xl font-bold">{t(labels.title)}</h2>
@@ -48,10 +48,8 @@ export default function ServicePicker({ businessId, selectedId, onSelect }: Prop
             key={service._id}
             onClick={() => onSelect(service)}
             className={cn(
-              "w-full text-start rounded-2xl border-2 p-4 transition-all duration-200 hover:border-primary hover:shadow-md hover:-translate-y-0.5",
-              selectedId === service._id
-                ? "border-primary bg-accent/50 shadow-md"
-                : "border-border bg-card"
+              "w-full text-start p-4 rounded-2xl glass-shimmer",
+              selectedId === service._id ? "glass-card-selected" : "glass-card"
             )}
           >
             <div className="flex items-start justify-between gap-3">
@@ -62,7 +60,22 @@ export default function ServicePicker({ businessId, selectedId, onSelect }: Prop
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
-                <span className="text-lg font-bold text-primary">{formatPrice(service.price)}</span>
+                {service.maxPrice && service.maxPrice > service.price ? (
+                  /* Full range: ₪200 - ₪600 — dir=ltr keeps min on left, max on right in RTL layout */
+                  <span dir="ltr" className="text-base font-bold text-primary leading-tight text-end">
+                    {formatPrice(service.price)}{" – "}{formatPrice(service.maxPrice)}
+                  </span>
+                ) : service.pricesByLength ? (
+                  /* Has per-length prices but no explicit max → "starting from" */
+                  <span className="text-base font-bold text-primary leading-tight text-end">
+                    החל מ-{formatPrice(service.price)}
+                  </span>
+                ) : (
+                  /* Fixed single price */
+                  <span className="text-lg font-bold text-primary">
+                    {formatPrice(service.price)}
+                  </span>
+                )}
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="w-3 h-3" />
                   {formatDuration(service.duration, lang)}

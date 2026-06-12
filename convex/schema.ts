@@ -36,6 +36,7 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     workingHours: workingHoursValidator,
     timezone: v.optional(v.string()),
+    isActive: v.optional(v.boolean()), // false = shop suspended
   }),
 
   // ─── barbers ─────────────────────────────────────────────────────────────
@@ -57,7 +58,16 @@ export default defineSchema({
     name: localizedString,
     description: localizedString,
     duration: v.number(),
-    price: v.number(),
+    price: v.number(),            // base / min price in agorot (always set)
+    maxPrice: v.optional(v.number()),  // max price in agorot (enables range display)
+    pricesByLength: v.optional(v.object({
+      short:  v.optional(v.number()),  // קצר
+      medium: v.optional(v.number()),  // בינוני
+      long:   v.optional(v.number()),  // ארוך
+    })),
+    requiresHairDetails: v.optional(v.boolean()),
+    depositAmount: v.optional(v.number()), // in agorot; absent/0 = no deposit required
+    bufferMinutes: v.optional(v.number()),  // gap after service before next booking
     isActive: v.boolean(),
   })
     .index("by_business", ["businessId"])
@@ -78,6 +88,17 @@ export default defineSchema({
       v.literal("cancelled")
     ),
     notes: v.optional(v.string()),
+    hairDetails: v.optional(v.object({
+      hairLength: v.optional(v.string()),
+      hairCondition: v.optional(v.string()),
+      bleachHistory: v.optional(v.string()),
+      grayHairPercentage: v.optional(v.string()),
+      previousKeratin: v.optional(v.string()),
+      currentHairPhotoStorageId: v.optional(v.string()),
+      desiredHairPhotoStorageId: v.optional(v.string()),
+      currentHairColorCode: v.optional(v.string()),
+      desiredHairColorCode: v.optional(v.string()),
+    })),
   })
     .index("by_barber", ["barberId"])
     .index("by_barber_time", ["barberId", "startTime"])
@@ -95,4 +116,20 @@ export default defineSchema({
     customEnd: v.optional(v.string()),
     note: v.optional(v.string()),
   }).index("by_business_date", ["businessId", "date"]),
+
+  // ─── gallery ─────────────────────────────────────────────────────────────
+  gallery: defineTable({
+    businessId: v.id("businesses"),
+    serviceId: v.optional(v.id("services")),
+    storageId: v.id("_storage"),
+    caption: v.optional(v.string()),
+  })
+    .index("by_business", ["businessId"])
+    .index("by_business_service", ["businessId", "serviceId"]),
+
+  // ─── settings ────────────────────────────────────────────────────────────
+  settings: defineTable({
+    key: v.string(),
+    value: v.string(),
+  }).index("by_key", ["key"]),
 });

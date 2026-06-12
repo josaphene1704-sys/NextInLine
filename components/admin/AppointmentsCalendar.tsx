@@ -5,21 +5,31 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { formatPrice, formatSlotTime, toDateStr } from "@/lib/utils";
+import { getColorByCode } from "@/lib/colors";
+import { needsHairDetailsStep } from "@/lib/hair-details";
+import { CustomerProfileDrawer } from "@/components/admin/CustomerProfileDrawer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Clock } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: "ממתין",
+  pending:   "ממתין",
   confirmed: "מאושר",
   cancelled: "בוטל",
 };
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  pending: "secondary",
+  pending:   "secondary",
   confirmed: "default",
   cancelled: "destructive",
+};
+
+const HAIR_LABEL: Record<string, string> = {
+  hairLength:         "אורך",
+  hairCondition:      "מצב",
+  bleachHistory:      "הבהרות",
+  grayHairPercentage: "שיבה",
+  previousKeratin:    "קראטין קודם",
 };
 
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -32,7 +42,7 @@ export function AppointmentsCalendar({
   timezone: string;
 }) {
   const barbers = useQuery(api.barbers.getAllByBusiness, { businessId });
-  const [selectedBarber, setSelectedBarber] = useState<string>(""); // "" = all
+  const [selectedBarber, setSelectedBarber] = useState<string>("");
 
   const fromMs = new Date().setUTCHours(0, 0, 0, 0);
 
@@ -44,11 +54,12 @@ export function AppointmentsCalendar({
 
   const updateStatus = useMutation(api.appointments.updateAppointmentStatus);
 
+  const [customerDrawer, setCustomerDrawer] = useState<{ phone: string; name: string } | null>(null);
+
   if (!barbers || !appointments) {
     return <div className="text-muted-foreground text-sm">טוען תורים...</div>;
   }
 
-  // Group by date string
   const byDate: Record<string, typeof appointments> = {};
   for (const appt of appointments) {
     const dateStr = toDateStr(new Date(appt.startTime));
@@ -61,7 +72,7 @@ export function AppointmentsCalendar({
     <div className="space-y-4">
       {/* Barber filter */}
       <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground shrink-0">ספר:</span>
+        <span className="text-sm text-muted-foreground shrink-0">ספרית:</span>
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setSelectedBarber("")}
@@ -71,7 +82,7 @@ export function AppointmentsCalendar({
                 : "border-border text-muted-foreground hover:border-primary"
             }`}
           >
-            כולם
+            כולן
           </button>
           {barbers.map((b) => (
             <button
@@ -93,6 +104,16 @@ export function AppointmentsCalendar({
         <p className="text-sm text-muted-foreground text-center py-12">
           אין תורים קרובים
         </p>
+      )}
+
+      {/* Customer profile drawer */}
+      {customerDrawer && (
+        <CustomerProfileDrawer
+          customerPhone={customerDrawer.phone}
+          customerName={customerDrawer.name}
+          timezone={timezone}
+          onClose={() => setCustomerDrawer(null)}
+        />
       )}
 
       {dates.map((dateStr) => {
@@ -117,70 +138,166 @@ export function AppointmentsCalendar({
             <div className="space-y-2">
               {byDate[dateStr].map((appt) => {
                 const timeStr = formatSlotTime(appt.startTime, timezone, "he");
-                const endStr = formatSlotTime(appt.endTime, timezone, "he");
+                const endStr  = formatSlotTime(appt.endTime,   timezone, "he");
+                const hd = appt.hairDetails;
+
+                const hasHairDetails = !!(
+                  hd && (
+                    hd.hairLength || hd.hairCondition || hd.bleachHistory ||
+                    hd.grayHairPercentage || hd.previousKeratin ||
+                    hd.currentHairColorCode || hd.desiredHairColorCode ||
+                    hd.currentHairPhotoUrl  || hd.desiredHairPhotoUrl
+                  )
+                );
+
+                const serviceNeedsHair = appt.service
+                  ? needsHairDetailsStep({ name: appt.service.name, requiresHairDetails: appt.service.requiresHairDetails } as any)
+                  : false;
+
                 return (
                   <Card
                     key={appt._id}
                     className={appt.status === "cancelled" ? "opacity-50" : ""}
                   >
-                    <CardContent className="py-3 flex items-center gap-3">
-                      <div className="text-xs font-mono text-muted-foreground shrink-0 w-20">
-                        {timeStr}–{endStr}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">
-                          {appt.customerName}
+                    <CardContent className="py-3 space-y-3">
+
+                      {/* ── שורה ראשית ── */}
+                      <div className="flex items-start gap-3">
+                        <div className="text-xs font-mono text-muted-foreground shrink-0 w-20 pt-0.5">
+                          {timeStr}–{endStr}
                         </div>
-                        <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
-                          <span>{appt.customerPhone}</span>
-                          {appt.service && (
-                            <span>
-                              · {appt.service.name.he} ({formatPrice(appt.service.price)})
-                            </span>
-                          )}
-                          {appt.barber && (
-                            <span>· {appt.barber.name.he}</span>
-                          )}
-                        </div>
-                        {appt.notes && (
-                          <div className="text-xs text-muted-foreground mt-0.5 italic">
-                            {appt.notes}
+                        <div className="flex-1 min-w-0">
+                          <button
+                            onClick={() => setCustomerDrawer({ phone: appt.customerPhone, name: appt.customerName })}
+                            className="font-semibold text-sm hover:text-primary hover:underline transition-colors text-right"
+                          >
+                            {appt.customerName}
+                          </button>
+                          <div className="text-xs text-muted-foreground flex gap-2 flex-wrap mt-0.5">
+                            <span>{appt.customerPhone}</span>
+                            {appt.service && (
+                              <span>· {appt.service.name.he} ({formatPrice(appt.service.price)})</span>
+                            )}
+                            {appt.barber && <span>· {appt.barber.name.he}</span>}
                           </div>
-                        )}
+                          {appt.notes && (
+                            <div className="text-xs text-muted-foreground mt-0.5 italic">
+                              {appt.notes}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge variant={STATUS_VARIANT[appt.status]} className="text-xs">
+                            {STATUS_LABEL[appt.status]}
+                          </Badge>
+                          {appt.status === "pending" && (
+                            <button
+                              onClick={() => updateStatus({ appointmentId: appt._id, status: "confirmed" })}
+                              className="text-green-600 hover:text-green-700 transition-colors"
+                              title="אשר"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </button>
+                          )}
+                          {appt.status !== "cancelled" && (
+                            <button
+                              onClick={() => updateStatus({ appointmentId: appt._id, status: "cancelled" })}
+                              className="text-muted-foreground hover:text-destructive transition-colors"
+                              title="בטל"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge variant={STATUS_VARIANT[appt.status]} className="text-xs">
-                          {STATUS_LABEL[appt.status]}
-                        </Badge>
-                        {appt.status === "pending" && (
-                          <button
-                            onClick={() =>
-                              updateStatus({
-                                appointmentId: appt._id,
-                                status: "confirmed",
-                              })
-                            }
-                            className="text-green-600 hover:text-green-700 transition-colors"
-                            title="אשר"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                          </button>
-                        )}
-                        {appt.status !== "cancelled" && (
-                          <button
-                            onClick={() =>
-                              updateStatus({
-                                appointmentId: appt._id,
-                                status: "cancelled",
-                              })
-                            }
-                            className="text-muted-foreground hover:text-destructive transition-colors"
-                            title="בטל"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
+
+                      {/* ── פרטי שיער ── */}
+                      {serviceNeedsHair && !hasHairDetails && (
+                        <div className="border-t border-border/50 pt-2">
+                          <p className="text-xs text-muted-foreground italic">לא הוזנו פרטי שיער</p>
+                        </div>
+                      )}
+
+                      {hasHairDetails && hd && (
+                        <div className="border-t border-border/50 pt-3 space-y-3">
+
+                          {/* צ'יפים טקסטואליים */}
+                          {(hd.hairLength || hd.hairCondition || hd.bleachHistory || hd.grayHairPercentage || hd.previousKeratin) && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {(["hairLength", "hairCondition", "bleachHistory", "grayHairPercentage", "previousKeratin"] as const).map((key) =>
+                                hd[key] ? (
+                                  <span
+                                    key={key}
+                                    className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-2.5 py-1 border border-border/60"
+                                  >
+                                    <span className="text-muted-foreground">{HAIR_LABEL[key]}:</span>
+                                    <span className="font-medium">{hd[key]}</span>
+                                  </span>
+                                ) : null
+                              )}
+                            </div>
+                          )}
+
+                          {/* צבעים מהקטלוג */}
+                          {(hd.currentHairColorCode || hd.desiredHairColorCode) && (
+                            <div className="flex gap-3 flex-wrap">
+                              {([
+                                ["currentHairColorCode", "צבע נוכחי"] as const,
+                                ["desiredHairColorCode", "צבע רצוי"] as const,
+                              ]).map(([key, lbl]) => {
+                                const color = getColorByCode(hd[key]);
+                                if (!color) return null;
+                                return (
+                                  <div
+                                    key={key}
+                                    className="flex items-center gap-2.5 bg-muted/50 rounded-xl px-2.5 py-2 border border-border/60"
+                                  >
+                                    <img
+                                      src={color.imagePath}
+                                      alt={color.name}
+                                      className="w-14 h-14 rounded-lg object-cover border border-border shrink-0 shadow-sm"
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="text-[10px] text-muted-foreground leading-none mb-1">{lbl}</p>
+                                      <p className="text-sm font-bold leading-none">{color.nameHe}</p>
+                                      <p className="text-[11px] text-muted-foreground leading-tight mt-0.5 max-w-[110px]">{color.code}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* תמונות הלקוחה */}
+                          {(hd.currentHairPhotoUrl || hd.desiredHairPhotoUrl) && (
+                            <div className="flex gap-3 flex-wrap">
+                              {[
+                                { url: hd.currentHairPhotoUrl, label: "שיער נוכחי" },
+                                { url: hd.desiredHairPhotoUrl, label: "שיער רצוי" },
+                              ].map(({ url, label }) =>
+                                url ? (
+                                  <a
+                                    key={label}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group flex flex-col items-center gap-1"
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={label}
+                                      className="w-20 h-20 rounded-xl object-cover border border-border group-hover:border-primary/60 transition-colors shadow-sm"
+                                    />
+                                    <span className="text-[10px] text-muted-foreground">{label}</span>
+                                  </a>
+                                ) : null
+                              )}
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+
                     </CardContent>
                   </Card>
                 );

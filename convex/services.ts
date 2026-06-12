@@ -1,6 +1,14 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+// ─── Shared validator ─────────────────────────────────────────────────────────
+
+const pricesByLengthValidator = v.optional(v.object({
+  short:  v.optional(v.number()),  // קצר
+  medium: v.optional(v.number()),  // בינוני
+  long:   v.optional(v.number()),  // ארוך
+}));
+
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 /** All active services for a given business. */
@@ -43,12 +51,21 @@ export const create = mutation({
     description: v.object({ he: v.string(), ar: v.string() }),
     duration: v.number(),
     price: v.number(),
+    maxPrice: v.optional(v.number()),
+    pricesByLength: pricesByLengthValidator,
+    requiresHairDetails: v.optional(v.boolean()),
+    depositAmount: v.optional(v.number()),
+    bufferMinutes: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const business = await ctx.db.get(args.businessId);
     if (!business) throw new Error("Business not found");
     if (args.duration <= 0) throw new Error("Duration must be positive");
     if (args.price < 0) throw new Error("Price cannot be negative");
+    if (args.maxPrice !== undefined && args.maxPrice < args.price)
+      throw new Error("Max price must be >= min price");
+    if (args.depositAmount !== undefined && args.depositAmount < 0)
+      throw new Error("Deposit amount cannot be negative");
 
     return await ctx.db.insert("services", { ...args, isActive: true });
   },
@@ -61,6 +78,11 @@ export const update = mutation({
     description: v.optional(v.object({ he: v.string(), ar: v.string() })),
     duration: v.optional(v.number()),
     price: v.optional(v.number()),
+    maxPrice: v.optional(v.number()),
+    pricesByLength: pricesByLengthValidator,
+    requiresHairDetails: v.optional(v.boolean()),
+    depositAmount: v.optional(v.number()),
+    bufferMinutes: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { serviceId, ...fields }) => {
@@ -70,6 +92,8 @@ export const update = mutation({
       throw new Error("Duration must be positive");
     if (fields.price !== undefined && fields.price < 0)
       throw new Error("Price cannot be negative");
+    if (fields.depositAmount !== undefined && fields.depositAmount < 0)
+      throw new Error("Deposit amount cannot be negative");
 
     const patch = Object.fromEntries(
       Object.entries(fields).filter(([, v]) => v !== undefined)

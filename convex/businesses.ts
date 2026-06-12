@@ -68,3 +68,13 @@ export const update = mutation({
     return { success: true };
   },
 });
+
+export const setIsActive = mutation({
+  args: { businessId: v.id("businesses"), isActive: v.boolean() },
+  handler: async (ctx, { businessId, isActive }) => {
+    const existing = await ctx.db.get(businessId);
+    if (!existing) throw new Error("Business not found");
+    await ctx.db.patch(businessId, { isActive });
+    return { success: true };
+  },
+});

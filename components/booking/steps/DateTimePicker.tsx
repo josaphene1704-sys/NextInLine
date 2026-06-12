@@ -86,10 +86,8 @@ export default function DateTimePicker({
                 key={dateStr}
                 onClick={() => onSelectDate(dateStr)}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 rounded-xl px-3 py-2.5 border-2 min-w-[58px] shrink-0 transition-all duration-200 snap-start",
-                  isSelected
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-border bg-card hover:border-primary/60"
+                  "flex flex-col items-center gap-0.5 px-3 py-2.5 shrink-0 snap-start date-chip",
+                  isSelected ? "date-chip-selected" : "date-chip-default"
                 )}
               >
                 <span className="text-xs font-medium">
@@ -115,13 +113,13 @@ export default function DateTimePicker({
           )}
 
           {slotsResult && !slotsResult.isWorkingDay && (
-            <div className="text-center text-muted-foreground py-8 bg-muted/50 rounded-2xl">
+            <div className="text-center text-muted-foreground py-8 glass rounded-2xl">
               {t(labels.notWorking)}
             </div>
           )}
 
           {slotsResult?.isWorkingDay && slotsResult.slots.length === 0 && (
-            <div className="text-center text-muted-foreground py-8 bg-muted/50 rounded-2xl">
+            <div className="text-center text-muted-foreground py-8 glass rounded-2xl">
               {t(labels.noSlots)}
             </div>
           )}
@@ -135,10 +133,8 @@ export default function DateTimePicker({
                     key={slot.startTime}
                     onClick={() => onSelectSlot(slot)}
                     className={cn(
-                      "rounded-xl border-2 py-2.5 text-sm font-semibold transition-all duration-200",
-                      isSelected
-                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                        : "border-border bg-card hover:border-primary/60 hover:bg-accent/30"
+                      "slot-btn",
+                      isSelected ? "slot-selected" : "slot-available"
                     )}
                   >
                     {formatSlotTime(slot.startTime, timezone, lang)}

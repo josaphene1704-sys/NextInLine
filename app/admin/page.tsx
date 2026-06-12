@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,8 @@ import { ServicesManager } from "@/components/admin/ServicesManager";
 import { BarbersManager } from "@/components/admin/BarbersManager";
 import { SpecialSchedulesManager } from "@/components/admin/SpecialSchedulesManager";
 import { AppointmentsCalendar } from "@/components/admin/AppointmentsCalendar";
+import { PasswordSettings } from "@/components/admin/PasswordSettings";
+import { GalleryManager } from "@/components/admin/GalleryManager";
 
 const TABS = [
   { id: "business",  label: "פרטי העסק" },
@@ -16,14 +19,23 @@ const TABS = [
   { id: "barbers",   label: "ספרים" },
   { id: "schedule",  label: "ימים מיוחדים" },
   { id: "calendar",  label: "תורים" },
+  { id: "gallery",   label: "גלרייה" },
+  { id: "settings",  label: "הגדרות" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
 export default function AdminPage() {
   const [tab, setTab] = useState<TabId>("business");
+  const router = useRouter();
   const businesses = useQuery(api.businesses.getAll);
   const business = businesses?.[0];
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem("adminAuthenticated")) {
+      router.replace("/");
+    }
+  }, [router]);
 
   if (businesses === undefined) {
     return (
@@ -42,13 +54,13 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30" dir="rtl">
-      <header className="bg-card border-b px-6 py-4 shadow-sm">
+    <div className="min-h-screen" dir="rtl">
+      <header className="sticky top-0 z-20 glass-header px-6 py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <h1 className="text-lg font-bold tracking-tight">ניהול — {business.name.he}</h1>
           <a
             href="/"
-            className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors border border-border/60 rounded-full px-3 py-1.5"
+            className="glass-badge text-xs font-medium text-muted-foreground hover:text-foreground rounded-full px-3 py-1.5"
           >
             ← חזרה לאתר
           </a>
@@ -56,17 +68,17 @@ export default function AdminPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        {/* Tab bar — scrollable on narrow screens */}
-        <div className="flex gap-0 border-b mb-8 overflow-x-auto">
+        {/* Tab bar — glass segmented control, scrollable on narrow screens */}
+        <div className="glass rounded-2xl p-1.5 mb-8 flex gap-1 overflow-x-auto">
           {TABS.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium -mb-px border-b-2 whitespace-nowrap transition-colors",
+                "px-4 py-2 text-sm whitespace-nowrap rounded-xl transition-all duration-200",
                 tab === id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  ? "bg-white text-primary font-semibold shadow-glass"
+                  : "font-medium text-muted-foreground hover:text-foreground hover:bg-white/50"
               )}
             >
               {label}
@@ -78,6 +90,8 @@ export default function AdminPage() {
         {tab === "services"  && <ServicesManager  businessId={business._id} />}
         {tab === "barbers"   && <BarbersManager   businessId={business._id} />}
         {tab === "schedule"  && <SpecialSchedulesManager businessId={business._id} />}
+        {tab === "gallery"   && <GalleryManager   businessId={business._id} />}
+        {tab === "settings"  && <PasswordSettings />}
         {tab === "calendar"  && (
           <div className="space-y-4">
             <div className="flex justify-end">
