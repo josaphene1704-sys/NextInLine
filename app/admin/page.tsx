@@ -105,6 +105,7 @@ export default function AdminPage() {
             <AppointmentsCalendar
               businessId={business._id}
               timezone={business.timezone ?? "UTC"}
+              businessName={business.name.he}
             />
           </div>
         )}

@@ -99,6 +99,7 @@ export default function SalonAdminPage() {
           <AppointmentsCalendar
             businessId={business._id}
             timezone={business.timezone ?? "UTC"}
+            businessName={business.name.he}
           />
         )}
       </main>

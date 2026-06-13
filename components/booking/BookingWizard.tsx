@@ -12,6 +12,7 @@ import HairDetailsStep from "./steps/HairDetailsStep";
 import ContactForm from "./steps/ContactForm";
 import DepositPayment from "./steps/DepositPayment";
 import Confirmation from "./steps/Confirmation";
+import { UpcomingAppointmentsBanner } from "@/components/booking/UpcomingAppointmentsBanner";
 import { CheckCircle2, Scissors, Sparkles, Calendar, Phone, Camera } from "lucide-react";
 
 // Step 4 = HairDetails (conditional)
@@ -110,6 +111,7 @@ export default function BookingWizard({ businessId }: { businessId: Id<"business
   const progressIdx = toProgressStep(step, hasHair);
   const showProgress = step < 6;
 
+
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-8 animate-float-up">
       {/* Progress bar */}
@@ -158,6 +160,11 @@ export default function BookingWizard({ businessId }: { businessId: Id<"business
             );
           })}
         </div>
+      )}
+
+      {/* Upcoming appointments banner — shown at step 1 for logged-in users */}
+      {step === 1 && user && (
+        <UpcomingAppointmentsBanner customerPhone={user.phone} />
       )}
 
       {/* Step 1 — Service */}

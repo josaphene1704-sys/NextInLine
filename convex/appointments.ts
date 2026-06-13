@@ -122,8 +122,21 @@ export const getAvailableSlots = query({
       bookedWindows
     );
 
+    // Also generate all possible slots (ignoring booked) to derive taken slots.
+    const allSlots = generateAvailableSlots(
+      date,
+      workingStart,
+      workingEnd,
+      service.duration,
+      slotInterval,
+      []
+    );
+    const availableSet = new Set(slots.map((s) => s.startTime));
+    const bookedSlots = allSlots.filter((s) => !availableSet.has(s.startTime));
+
     return {
       slots,
+      bookedSlots,
       isWorkingDay: true,
       timezone: business.timezone ?? "UTC",
     };
@@ -478,6 +491,59 @@ export const getCustomerProfile = query({
         return { ...rest, barber, service, business, hairDetails };
       })
     );
+  },
+});
+
+// ─── rescheduleAppointment ────────────────────────────────────────────────────
+
+export const rescheduleAppointment = mutation({
+  args: {
+    appointmentId: v.id("appointments"),
+    startTime: v.number(),
+  },
+  handler: async (ctx, { appointmentId, startTime }) => {
+    const appt = await ctx.db.get(appointmentId);
+    if (!appt) throw new Error("Appointment not found");
+    if (appt.status === "cancelled") throw new Error("Cannot reschedule a cancelled appointment");
+    if (appt.startTime <= Date.now()) throw new Error("Cannot reschedule a past appointment");
+    if (startTime <= Date.now()) throw new Error("New time must be in the future");
+
+    const service = await ctx.db.get(appt.serviceId);
+    if (!service) throw new Error("Service not found");
+
+    const endTime = startTime + service.duration * 60_000;
+
+    // Race-condition guard: check for conflicts on the new day
+    const dayStart = new Date(startTime);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayStartMs = dayStart.getTime();
+    const dayEndMs = dayStartMs + 86_400_000;
+
+    const sameDay = await ctx.db
+      .query("appointments")
+      .withIndex("by_barber_time", (q) =>
+        q.eq("barberId", appt.barberId).gte("startTime", dayStartMs).lt("startTime", dayEndMs)
+      )
+      .filter((q) => q.neq(q.field("status"), "cancelled"))
+      .collect();
+
+    const others = sameDay.filter((a) => a._id !== appointmentId);
+
+    const othersExtended = await Promise.all(
+      others.map(async (a) => {
+        const svc = await ctx.db.get(a.serviceId);
+        const bufferMs = (svc?.bufferMinutes ?? 0) * 60_000;
+        return { startTime: a.startTime, endTime: a.endTime + bufferMs };
+      })
+    );
+
+    const hasConflict = othersExtended.some(
+      (a) => a.startTime < endTime && a.endTime > startTime
+    );
+    if (hasConflict) throw new Error("This time slot is no longer available. Please choose another.");
+
+    await ctx.db.patch(appointmentId, { startTime, endTime, status: "pending" });
+    return { success: true };
   },
 });
 
