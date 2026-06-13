@@ -36,8 +36,14 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     workingHours: workingHoursValidator,
     timezone: v.optional(v.string()),
-    isActive: v.optional(v.boolean()), // false = shop suspended
-  }),
+    isActive: v.optional(v.boolean()),
+    // Multi-tenant fields
+    slug: v.optional(v.string()),
+    temporaryPassword: v.optional(v.string()),
+    salonLink: v.optional(v.string()),
+    adminPassword: v.optional(v.string()),
+    isFirstLogin: v.optional(v.boolean()),
+  }).index("by_slug", ["slug"]),
 
   // ─── barbers ─────────────────────────────────────────────────────────────
   barbers: defineTable({

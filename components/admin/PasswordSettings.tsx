@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,7 @@ import { ShieldCheck, Eye, EyeOff, Check, Loader2, Power, PowerOff } from "lucid
 
 // ─── Password change card ──────────────────────────────────────────────────────
 
-function PasswordCard() {
+function PasswordCard({ businessId }: { businessId?: Id<"businesses"> }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showCurrent, setShowCurrent] = useState(false);
@@ -29,7 +30,7 @@ function PasswordCard() {
     setError(null);
     setSuccess(false);
     try {
-      await updatePassword({ currentPassword, newPassword });
+      await updatePassword({ currentPassword, newPassword, businessId });
       setSuccess(true);
       setCurrentPassword("");
       setNewPassword("");
@@ -140,9 +141,11 @@ function PasswordCard() {
 
 // ─── Shop activation card ──────────────────────────────────────────────────────
 
-function ShopStatusCard() {
+function ShopStatusCard({ businessId }: { businessId?: Id<"businesses"> }) {
   const businesses = useQuery(api.businesses.getAll);
-  const business = businesses?.[0];
+  const business = businessId
+    ? businesses?.find((b) => b._id === businessId)
+    : businesses?.[0];
   const setIsActive = useMutation(api.businesses.setIsActive);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -221,11 +224,11 @@ function ShopStatusCard() {
 
 // ─── Exported component ───────────────────────────────────────────────────────
 
-export function PasswordSettings() {
+export function PasswordSettings({ businessId }: { businessId?: Id<"businesses"> }) {
   return (
     <div className="space-y-6">
-      <PasswordCard />
-      <ShopStatusCard />
+      <PasswordCard businessId={businessId} />
+      <ShopStatusCard businessId={businessId} />
     </div>
   );
 }

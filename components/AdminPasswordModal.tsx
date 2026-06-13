@@ -4,6 +4,7 @@ import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,11 +14,20 @@ import { ShieldCheck, Eye, EyeOff, X, Loader2, KeyRound } from "lucide-react";
 interface AdminPasswordModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  businessId?: Id<"businesses">;
+  authKey?: string;
+  adminSuccessPath?: string;
 }
 
 type Phase = "login" | "force-change";
 
-export function AdminPasswordModal({ open, onOpenChange }: AdminPasswordModalProps) {
+export function AdminPasswordModal({
+  open,
+  onOpenChange,
+  businessId,
+  authKey = "adminAuthenticated",
+  adminSuccessPath = "/admin",
+}: AdminPasswordModalProps) {
   const [phase, setPhase] = useState<Phase>("login");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -46,13 +56,13 @@ export function AdminPasswordModal({ open, onOpenChange }: AdminPasswordModalPro
     setLoading(true);
     setError(null);
     try {
-      const { isFirstLogin } = await verifyPassword({ password });
+      const { isFirstLogin } = await verifyPassword({ password, businessId });
       if (isFirstLogin) {
         setPhase("force-change");
       } else {
-        localStorage.setItem("adminAuthenticated", "1");
+        localStorage.setItem(authKey, "1");
         handleClose();
-        router.push("/admin");
+        router.push(adminSuccessPath);
       }
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : "אירעה שגיאה, נסי שנית";
@@ -75,10 +85,10 @@ export function AdminPasswordModal({ open, onOpenChange }: AdminPasswordModalPro
     setLoading(true);
     setError(null);
     try {
-      await forceChangePassword({ newPassword });
-      localStorage.setItem("adminAuthenticated", "1");
+      await forceChangePassword({ newPassword, businessId });
+      localStorage.setItem(authKey, "1");
       handleClose();
-      router.push("/admin");
+      router.push(adminSuccessPath);
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : "אירעה שגיאה, נסי שנית";
       setError(raw.replace(/^Uncaught Error: /, ""));

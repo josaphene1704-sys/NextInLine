@@ -17,6 +17,65 @@ export const getAll = query({
   },
 });
 
+export const getBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    return await ctx.db
+      .query("businesses")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+  },
+});
+
+export const provision = mutation({
+  args: {
+    slug: v.string(),
+    nameHe: v.string(),
+  },
+  handler: async (ctx, { slug, nameHe }) => {
+    const existing = await ctx.db
+      .query("businesses")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+    if (existing) throw new Error(`הסלאג "${slug}" כבר קיים במערכת`);
+
+    const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    let tempPassword = "";
+    for (let i = 0; i < 8; i++) {
+      tempPassword += chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    const baseUrl = process.env.SITE_URL ?? "https://next-in-line-teal.vercel.app";
+    const salonLink = `${baseUrl}/salon/${slug}`;
+
+    const businessId = await ctx.db.insert("businesses", {
+      slug,
+      name: { he: nameHe, ar: nameHe },
+      description: { he: "", ar: "" },
+      address: "",
+      phone: "",
+      workingHours: {
+        daySchedules: [
+          { day: 0, start: "09:00", end: "19:00" },
+          { day: 1, start: "09:00", end: "19:00" },
+          { day: 2, start: "09:00", end: "19:00" },
+          { day: 3, start: "09:00", end: "19:00" },
+          { day: 4, start: "09:00", end: "19:00" },
+        ],
+        slotIntervalMinutes: 30,
+      },
+      timezone: "Asia/Jerusalem",
+      isActive: true,
+      temporaryPassword: tempPassword,
+      salonLink,
+      adminPassword: tempPassword,
+      isFirstLogin: true,
+    });
+
+    return { businessId, temporaryPassword: tempPassword, salonLink };
+  },
+});
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 const workingHoursArg = v.object({

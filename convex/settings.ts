@@ -4,48 +4,67 @@ import { v } from "convex/values";
 const DEFAULT_PASSWORD = "admin10";
 
 // ─── verifyAdminPassword ──────────────────────────────────────────────────────
-// Returns { isFirstLogin } on success; throws on wrong password or suspension.
 
 export const verifyAdminPassword = mutation({
-  args: { password: v.string() },
+  args: {
+    password: v.string(),
+    businessId: v.optional(v.id("businesses")),
+  },
   handler: async (ctx, args): Promise<{ isFirstLogin: boolean }> => {
-    // Reject if the business has been suspended
-    const business = await ctx.db.query("businesses").first();
-    if (business && business.isActive === false) {
-      throw new Error("Account suspended");
+    // Per-business auth (multi-tenant)
+    if (args.businessId) {
+      const business = await ctx.db.get(args.businessId);
+      if (!business) throw new Error("Business not found");
+      if (business.isActive === false) throw new Error("Account suspended");
+
+      const stored = business.adminPassword ?? business.temporaryPassword;
+      if (!stored || stored !== args.password) throw new Error("סיסמה שגויה");
+
+      return { isFirstLogin: business.isFirstLogin ?? true };
     }
+
+    // Legacy single-tenant auth (global settings)
+    const business = await ctx.db.query("businesses").first();
+    if (business && business.isActive === false) throw new Error("Account suspended");
 
     const setting = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "adminPassword"))
       .unique();
 
-    if ((setting?.value ?? DEFAULT_PASSWORD) !== args.password) {
-      throw new Error("סיסמה שגויה");
-    }
+    if ((setting?.value ?? DEFAULT_PASSWORD) !== args.password) throw new Error("סיסמה שגויה");
 
-    // isFirstLogin defaults to true until explicitly set to "false"
     const firstLoginSetting = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "isFirstLogin"))
       .unique();
 
-    const isFirstLogin = firstLoginSetting?.value !== "false";
-    return { isFirstLogin };
+    return { isFirstLogin: firstLoginSetting?.value !== "false" };
   },
 });
 
 // ─── forceChangePasswordOnFirstLogin ─────────────────────────────────────────
-// Called after first-login verification; no current-password check needed.
-// Also bootstraps the business row if one does not exist yet.
 
 export const forceChangePasswordOnFirstLogin = mutation({
-  args: { newPassword: v.string() },
+  args: {
+    newPassword: v.string(),
+    businessId: v.optional(v.id("businesses")),
+  },
   handler: async (ctx, args): Promise<void> => {
     if (!args.newPassword || args.newPassword.length < 4) {
       throw new Error("הסיסמה החדשה קצרה מדי");
     }
 
+    // Per-business (multi-tenant)
+    if (args.businessId) {
+      await ctx.db.patch(args.businessId, {
+        adminPassword: args.newPassword,
+        isFirstLogin: false,
+      });
+      return;
+    }
+
+    // Legacy global settings
     const passwordSetting = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "adminPassword"))
@@ -68,8 +87,6 @@ export const forceChangePasswordOnFirstLogin = mutation({
       await ctx.db.insert("settings", { key: "isFirstLogin", value: "false" });
     }
 
-    // Bootstrap the business row for this hairdresser if it doesn't exist yet.
-    // The admin page requires at least one business to be present.
     const existingBusiness = await ctx.db.query("businesses").first();
     if (!existingBusiness) {
       await ctx.db.insert("businesses", {
@@ -95,33 +112,53 @@ export const forceChangePasswordOnFirstLogin = mutation({
 });
 
 // ─── updateAdminPassword ──────────────────────────────────────────────────────
-// Regular password change (requires current password). Also clears isFirstLogin.
 
 export const updateAdminPassword = mutation({
-  args: { currentPassword: v.string(), newPassword: v.string() },
+  args: {
+    currentPassword: v.string(),
+    newPassword: v.string(),
+    businessId: v.optional(v.id("businesses")),
+  },
   handler: async (ctx, args): Promise<void> => {
+    if (!args.newPassword || args.newPassword.length < 4) {
+      throw new Error("הסיסמה החדשה קצרה מדי");
+    }
+
+    // Per-business (multi-tenant)
+    if (args.businessId) {
+      const business = await ctx.db.get(args.businessId);
+      if (!business) throw new Error("Business not found");
+
+      const stored = business.adminPassword ?? business.temporaryPassword ?? DEFAULT_PASSWORD;
+      if (stored !== args.currentPassword) throw new Error("סיסמה שגויה");
+
+      await ctx.db.patch(args.businessId, {
+        adminPassword: args.newPassword,
+        isFirstLogin: false,
+      });
+      return;
+    }
+
+    // Legacy global settings
     const setting = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "adminPassword"))
       .unique();
+
     const stored = setting?.value ?? DEFAULT_PASSWORD;
-    if (stored !== args.currentPassword) {
-      throw new Error("סיסמה שגויה");
-    }
-    if (!args.newPassword || args.newPassword.length < 4) {
-      throw new Error("הסיסמה החדשה קצרה מדי");
-    }
+    if (stored !== args.currentPassword) throw new Error("סיסמה שגויה");
+
     if (setting) {
       await ctx.db.patch(setting._id, { value: args.newPassword });
     } else {
       await ctx.db.insert("settings", { key: "adminPassword", value: args.newPassword });
     }
 
-    // Clear isFirstLogin if still pending
     const firstLoginSetting = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "isFirstLogin"))
       .unique();
+
     if (firstLoginSetting && firstLoginSetting.value !== "false") {
       await ctx.db.patch(firstLoginSetting._id, { value: "false" });
     } else if (!firstLoginSetting) {
