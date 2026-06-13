@@ -5,9 +5,6 @@ node_modules/
 .next/
 out/
 
-# Convex generated files
-convex/_generated/
-
 # environment variables
 .env
 .env.local
@@ -23,3 +20,4 @@ tsconfig.tsbuildinfo
 .claude/
 skills-lock.json
 AGENTS.md
+!convex/_generated/
