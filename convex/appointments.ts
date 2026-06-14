@@ -171,11 +171,12 @@ export const createAppointment = mutation({
     customerName: v.string(),
     customerPhone: v.string(),
     startTime: v.number(),
+    finalPrice: v.optional(v.number()),
     notes: v.optional(v.string()),
     hairDetails: hairDetailsValidator,
   },
   handler: async (ctx, args) => {
-    const { barberId, serviceId, customerName, customerPhone, startTime, notes, hairDetails } =
+    const { barberId, serviceId, customerName, customerPhone, startTime, finalPrice, notes, hairDetails } =
       args;
 
     // ── Input validation ──────────────────────────────────────────────────
@@ -250,6 +251,7 @@ export const createAppointment = mutation({
       startTime,
       endTime,
       status: "pending",
+      finalPrice: finalPrice ?? service.price,
       notes,
       hairDetails,
     });
@@ -373,7 +375,7 @@ export const getRange = query({
         const serviceForAdmin = service
           ? { name: service.name, price: service.price, requiresHairDetails: service.requiresHairDetails }
           : null;
-        return { ...rest, barber, service: serviceForAdmin, hairDetails };
+        return { ...rest, barber, service: serviceForAdmin, hairDetails, finalPrice: appt.finalPrice ?? service?.price };
       })
     );
   },
@@ -429,7 +431,7 @@ export const getUpcoming = query({
         const serviceForAdmin = service
           ? { name: service.name, price: service.price, requiresHairDetails: service.requiresHairDetails }
           : null;
-        return { ...rest, barber, service: serviceForAdmin, hairDetails };
+        return { ...rest, barber, service: serviceForAdmin, hairDetails, finalPrice: appt.finalPrice ?? service?.price };
       })
     );
   },

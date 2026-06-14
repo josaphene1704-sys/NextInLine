@@ -85,8 +85,8 @@ function AppointmentCard({ appt, timezone }: { appt: any; timezone: string }) {
             </span>
           </div>
 
-          {appt.service?.price && (
-            <p className="text-xs text-muted-foreground">{formatPrice(appt.service.price)}</p>
+          {(appt.finalPrice ?? appt.service?.price) && (
+            <p className="text-xs text-muted-foreground">{formatPrice(appt.finalPrice ?? appt.service!.price)}</p>
           )}
 
           {/* Hair details */}

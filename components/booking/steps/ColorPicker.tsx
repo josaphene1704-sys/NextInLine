@@ -141,7 +141,7 @@ export default function ColorPicker({
             </div>
 
             {/* Color grid */}
-            <div className="grid grid-cols-4 gap-2 p-3 max-h-64 overflow-y-auto">
+            <div className="grid grid-cols-3 gap-3 p-3 max-h-72 overflow-y-auto bg-white">
               {colorsInCategory.map((c) => {
                 const isActive = c.code === value;
                 return (
@@ -160,11 +160,11 @@ export default function ColorPicker({
                       <img
                         src={c.imagePath}
                         alt={c.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover bg-white"
                         loading="lazy"
                       />
                     </div>
-                    <p className="text-[10px] font-semibold text-center py-0.5 px-0.5 bg-background/90 leading-tight truncate">
+                    <p className="text-[11px] font-semibold text-center py-1 px-0.5 bg-white leading-tight truncate">
                       {c.nameHe}
                     </p>
                     {isActive && (

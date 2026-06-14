@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { formatPrice, formatSlotTime, toDateStr } from "@/lib/utils";
+import { downloadICS } from "@/lib/calendar";
 import { getColorByCode } from "@/lib/colors";
 import { needsHairDetailsStep } from "@/lib/hair-details";
 import { CustomerProfileDrawer } from "@/components/admin/CustomerProfileDrawer";
@@ -60,6 +61,27 @@ function buildRescheduleWhatsAppUrl(
   const biz = businessName ? ` ב${businessName}` : "";
   const svc = serviceName ? ` ל${serviceName}` : "";
   const message = `היי ${name}! המועד של התור שלך${svc} עודכן לתאריך ${dateStr} בשעה ${timeStr}${biz}. נשמח לראותך! 💖`;
+  return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildCancelWhatsAppUrl(
+  phone: string,
+  name: string,
+  startTime: number,
+  timezone: string,
+  serviceName: string,
+  businessName: string,
+): string {
+  const date = new Date(startTime);
+  const dateStr = date.toLocaleDateString("he-IL", {
+    timeZone: timezone, weekday: "long", day: "numeric", month: "long",
+  });
+  const timeStr = date.toLocaleTimeString("he-IL", {
+    timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  const biz = businessName ? ` ב${businessName}` : "";
+  const svc = serviceName ? ` ל${serviceName}` : "";
+  const message = `היי ${name}! לצערנו, התור שלך${svc} שהיה בתאריך ${dateStr} בשעה ${timeStr}${biz} בוטל. ניתן לקבוע תור חדש באתר. מצטערים על אי הנוחות 🙏`;
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
 }
 
@@ -134,6 +156,16 @@ function AdminApptCard({
       businessName,
     );
     window.open(url, "_blank", "noopener,noreferrer");
+    const duration = appt.endTime - appt.startTime;
+    const serviceName = appt.service?.name?.he ?? "תור";
+    downloadICS({
+      uid: `nextinline-${appt._id}`,
+      startTime: newStartTime,
+      endTime: newStartTime + duration,
+      summary: `${serviceName}${businessName ? ` ב${businessName}` : ""}`,
+      description: appt.barber?.name?.he ? `תור עם ${appt.barber.name.he}` : "",
+      sequence: 1,
+    }, "עדכון-תור.ics");
   }
 
   return (
@@ -156,7 +188,7 @@ function AdminApptCard({
               <div className="text-xs text-muted-foreground flex gap-2 flex-wrap mt-0.5">
                 <span>{appt.customerPhone}</span>
                 {appt.service && (
-                  <span>· {appt.service.name.he} ({formatPrice(appt.service.price)})</span>
+                  <span>· {appt.service.name.he} ({formatPrice(appt.finalPrice ?? appt.service.price)})</span>
                 )}
                 {appt.barber && <span>· {appt.barber.name.he}</span>}
               </div>
@@ -198,9 +230,26 @@ function AdminApptCard({
                     <CalendarClock className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => updateStatus({ appointmentId: appt._id, status: "cancelled" })}
+                    onClick={async () => {
+                      await updateStatus({ appointmentId: appt._id, status: "cancelled" });
+                      const url = buildCancelWhatsAppUrl(
+                        appt.customerPhone, appt.customerName,
+                        appt.startTime, timezone,
+                        appt.service?.name?.he ?? "", businessName,
+                      );
+                      window.open(url, "_blank", "noopener,noreferrer");
+                      const serviceName = appt.service?.name?.he ?? "תור";
+                      downloadICS({
+                        uid: `nextinline-${appt._id}`,
+                        startTime: appt.startTime,
+                        endTime: appt.endTime,
+                        summary: `ביטול: ${serviceName}${businessName ? ` ב${businessName}` : ""}`,
+                        cancelled: true,
+                        sequence: 2,
+                      }, "ביטול-תור.ics");
+                    }}
                     className="text-muted-foreground hover:text-destructive transition-colors"
-                    title="בטל"
+                    title="בטל ושלח WhatsApp"
                   >
                     <XCircle className="h-4 w-4" />
                   </button>

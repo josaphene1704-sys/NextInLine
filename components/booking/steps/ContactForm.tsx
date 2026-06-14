@@ -6,6 +6,7 @@ import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useLang } from "@/contexts/LanguageContext";
 import { formatPrice } from "@/lib/utils";
 import { calcFinalPrice, HairDetailsData } from "@/lib/hair-details";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,6 +74,7 @@ export default function ContactForm({
   const [error, setError] = useState<string | null>(null);
 
   const depositAmount = service.depositAmount ?? 0;
+  const finalPrice = calcFinalPrice(service, hairDetails.hairLength);
 
   const locale = lang === "ar" ? "ar-IL" : "he-IL";
   const [y, m, d] = date.split("-").map(Number);
@@ -103,6 +105,7 @@ export default function ContactForm({
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         startTime: slot.startTime,
+        finalPrice,
         notes: notes.trim() || undefined,
         hairDetails: Object.keys(hairDetails).length > 0 ? hairDetails : undefined,
       });

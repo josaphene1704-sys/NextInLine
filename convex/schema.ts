@@ -93,6 +93,7 @@ export default defineSchema({
       v.literal("confirmed"),
       v.literal("cancelled")
     ),
+    finalPrice: v.optional(v.number()), // actual price charged (may differ from service.price when pricesByLength is used)
     notes: v.optional(v.string()),
     hairDetails: v.optional(v.object({
       hairLength: v.optional(v.string()),

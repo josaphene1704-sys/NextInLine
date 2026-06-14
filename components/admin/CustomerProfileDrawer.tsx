@@ -124,8 +124,8 @@ export function CustomerProfileDrawer({ customerPhone, customerName, timezone, o
                       <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 ${STATUS_COLOR[appt.status]}`}>
                         {STATUS_LABEL[appt.status]}
                       </span>
-                      {appt.service?.price && (
-                        <span className="text-[11px] text-muted-foreground">{formatPrice(appt.service.price)}</span>
+                      {(appt.finalPrice ?? appt.service?.price) && (
+                        <span className="text-[11px] text-muted-foreground">{formatPrice(appt.finalPrice ?? appt.service!.price)}</span>
                       )}
                     </div>
                   </div>

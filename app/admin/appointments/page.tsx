@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { formatPrice, formatSlotTime, toDateStr } from "@/lib/utils";
+import { downloadICS } from "@/lib/calendar";
 import { getColorByCode } from "@/lib/colors";
 import { needsHairDetailsStep } from "@/lib/hair-details";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,28 +40,46 @@ function normalizePhone(raw: string): string {
   return digits;
 }
 
-function buildWhatsAppUrl(
+function buildConfirmWhatsAppUrl(
   phone: string,
   name: string,
   startTime: number,
-  timezone: string
+  timezone: string,
+  serviceName: string,
+  businessName: string,
 ): string {
-  const normalized = normalizePhone(phone);
   const date = new Date(startTime);
   const dateStr = date.toLocaleDateString("he-IL", {
-    timeZone: timezone,
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
+    timeZone: timezone, weekday: "long", day: "numeric", month: "long",
   });
   const timeStr = date.toLocaleTimeString("he-IL", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
+    timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false,
   });
-  const message = `היי ${name}, שמחים לעדכן שהתור שלך נקבע בהצלחה בתאריך ${dateStr} בשעה ${timeStr}! נשמח לראותך.`;
-  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+  const svc = serviceName ? ` ל${serviceName}` : "";
+  const biz = businessName ? ` ב${businessName}` : "";
+  const message = `היי ${name}! התור שלך${svc} אושר לתאריך ${dateStr} בשעה ${timeStr}${biz}. נשמח לראותך! 💖`;
+  return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildCancelWhatsAppUrl(
+  phone: string,
+  name: string,
+  startTime: number,
+  timezone: string,
+  serviceName: string,
+  businessName: string,
+): string {
+  const date = new Date(startTime);
+  const dateStr = date.toLocaleDateString("he-IL", {
+    timeZone: timezone, weekday: "long", day: "numeric", month: "long",
+  });
+  const timeStr = date.toLocaleTimeString("he-IL", {
+    timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  const svc = serviceName ? ` ל${serviceName}` : "";
+  const biz = businessName ? ` ב${businessName}` : "";
+  const message = `היי ${name}! לצערנו, התור שלך${svc} שהיה בתאריך ${dateStr} בשעה ${timeStr}${biz} בוטל. ניתן לקבוע תור חדש באתר. מצטערים על אי הנוחות 🙏`;
+  return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
 }
 
 // ─── Hair detail labels ───────────────────────────────────────────────────────
@@ -82,6 +101,7 @@ type AppointmentRow = {
   startTime: number;
   endTime: number;
   status: "pending" | "confirmed" | "cancelled";
+  finalPrice?: number;
   notes?: string;
   service?: { name: { he: string; ar: string }; price: number; requiresHairDetails?: boolean } | null;
   barber?: { name: { he: string; ar: string } } | null;
@@ -101,12 +121,14 @@ type AppointmentRow = {
 function AppointmentCard({
   appt,
   timezone,
+  businessName,
   onConfirm,
   onCancel,
   onRestore,
 }: {
   appt: AppointmentRow;
   timezone: string;
+  businessName: string;
   onConfirm: () => void;
   onCancel: () => void;
   onRestore: () => void;
@@ -142,7 +164,7 @@ function AppointmentCard({
             <div className="text-xs text-muted-foreground flex gap-2 flex-wrap mt-0.5">
               <span>{appt.customerPhone}</span>
               {appt.service && (
-                <span>· {appt.service.name.he} ({formatPrice(appt.service.price)})</span>
+                <span>· {appt.service.name.he} ({formatPrice(appt.finalPrice ?? appt.service.price)})</span>
               )}
               {appt.barber && <span>· {appt.barber.name.he}</span>}
             </div>
@@ -498,12 +520,33 @@ export default function AppointmentsAdminPage() {
                     key={appt._id}
                     appt={appt}
                     timezone={timezone}
+                    businessName={business?.name?.he ?? ""}
                     onConfirm={async () => {
                       await updateStatus({ appointmentId: appt._id, status: "confirmed" });
-                      const url = buildWhatsAppUrl(appt.customerPhone, appt.customerName, appt.startTime, timezone);
+                      const url = buildConfirmWhatsAppUrl(
+                        appt.customerPhone, appt.customerName, appt.startTime, timezone,
+                        appt.service?.name?.he ?? "", business?.name?.he ?? "",
+                      );
                       window.open(url, "_blank", "noopener,noreferrer");
                     }}
-                    onCancel={() => updateStatus({ appointmentId: appt._id, status: "cancelled" })}
+                    onCancel={async () => {
+                      await updateStatus({ appointmentId: appt._id, status: "cancelled" });
+                      const url = buildCancelWhatsAppUrl(
+                        appt.customerPhone, appt.customerName, appt.startTime, timezone,
+                        appt.service?.name?.he ?? "", business?.name?.he ?? "",
+                      );
+                      window.open(url, "_blank", "noopener,noreferrer");
+                      const serviceName = appt.service?.name?.he ?? "תור";
+                      const bizName = business?.name?.he ?? "";
+                      downloadICS({
+                        uid: `nextinline-${appt._id}`,
+                        startTime: appt.startTime,
+                        endTime: appt.endTime,
+                        summary: `ביטול: ${serviceName}${bizName ? ` ב${bizName}` : ""}`,
+                        cancelled: true,
+                        sequence: 2,
+                      }, "ביטול-תור.ics");
+                    }}
                     onRestore={() => updateStatus({ appointmentId: appt._id, status: "pending" })}
                   />
                 ))}

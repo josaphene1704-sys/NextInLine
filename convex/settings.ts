@@ -17,10 +17,16 @@ export const verifyAdminPassword = mutation({
       if (!business) throw new Error("Business not found");
       if (business.isActive === false) throw new Error("Account suspended");
 
-      const stored = business.adminPassword ?? business.temporaryPassword;
+      // First-login path: match against temporaryPassword directly, skip adminPassword entirely.
+      if (business.isFirstLogin !== false && business.temporaryPassword === args.password) {
+        return { isFirstLogin: true };
+      }
+
+      // Normal login path: match against adminPassword only.
+      const stored = business.adminPassword;
       if (!stored || stored !== args.password) throw new Error("סיסמה שגויה");
 
-      return { isFirstLogin: business.isFirstLogin ?? true };
+      return { isFirstLogin: business.isFirstLogin ?? false };
     }
 
     // Legacy single-tenant auth (global settings)
