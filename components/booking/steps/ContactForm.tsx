@@ -156,7 +156,7 @@ export default function ContactForm({
       </div>
 
       {/* Upcoming appointments banner */}
-      <UpcomingAppointmentsBanner customerPhone={customerPhone} />
+      <UpcomingAppointmentsBanner customerPhone={customerPhone} businessId={barber.businessId} />
 
       {/* Contact form */}
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -127,13 +127,19 @@ function ApptRow({
 
 // ─── Banner ───────────────────────────────────────────────────────────────────
 
-export function UpcomingAppointmentsBanner({ customerPhone }: { customerPhone: string }) {
+export function UpcomingAppointmentsBanner({
+  customerPhone,
+  businessId,
+}: {
+  customerPhone: string;
+  businessId: import("@/convex/_generated/dataModel").Id<"businesses">;
+}) {
   const { lang } = useLang();
 
   const phoneDigits = customerPhone.replace(/\D/g, "");
   const allAppts = useQuery(
     api.appointments.getCustomerAppointments,
-    phoneDigits.length >= 9 ? { customerPhone } : "skip"
+    phoneDigits.length >= 9 ? { customerPhone, businessId } : "skip"
   );
 
   const upcoming = (allAppts ?? []).filter(

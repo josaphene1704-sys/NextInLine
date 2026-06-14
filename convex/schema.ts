@@ -110,6 +110,7 @@ export default defineSchema({
     .index("by_barber", ["barberId"])
     .index("by_barber_time", ["barberId", "startTime"])
     .index("by_customer", ["customerPhone"])
+    .index("by_customer_business", ["customerPhone", "businessId"])
     .index("by_business", ["businessId"])
     .index("by_business_time", ["businessId", "startTime"]),
 

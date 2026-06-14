@@ -274,17 +274,28 @@ export const createAppointment = mutation({
  * so the client needs a single query call.
  */
 export const getCustomerAppointments = query({
-  args: { customerPhone: v.string() },
-  handler: async (ctx, { customerPhone }) => {
+  args: {
+    customerPhone: v.string(),
+    businessId: v.optional(v.id("businesses")),
+  },
+  handler: async (ctx, { customerPhone, businessId }) => {
     if (!customerPhone.trim()) return [];
 
-    const appointments = await ctx.db
-      .query("appointments")
-      .withIndex("by_customer", (q) =>
-        q.eq("customerPhone", customerPhone.trim())
-      )
-      .order("desc")
-      .collect();
+    const appointments = businessId
+      ? await ctx.db
+          .query("appointments")
+          .withIndex("by_customer_business", (q) =>
+            q.eq("customerPhone", customerPhone.trim()).eq("businessId", businessId)
+          )
+          .order("desc")
+          .collect()
+      : await ctx.db
+          .query("appointments")
+          .withIndex("by_customer", (q) =>
+            q.eq("customerPhone", customerPhone.trim())
+          )
+          .order("desc")
+          .collect();
 
     return await Promise.all(
       appointments.map(async (appt) => {

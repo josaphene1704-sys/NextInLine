@@ -164,7 +164,7 @@ export default function BookingWizard({ businessId }: { businessId: Id<"business
 
       {/* Upcoming appointments banner — shown at step 1 for logged-in users */}
       {step === 1 && user && (
-        <UpcomingAppointmentsBanner customerPhone={user.phone} />
+        <UpcomingAppointmentsBanner customerPhone={user.phone} businessId={businessId} />
       )}
 
       {/* Step 1 — Service */}

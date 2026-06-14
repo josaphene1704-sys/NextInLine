@@ -72,6 +72,49 @@ export const provision = mutation({
       isFirstLogin: true,
     });
 
+    // Seed default services so the booking wizard isn't empty on first visit
+    const s1 = await ctx.db.insert("services", {
+      businessId,
+      name: { he: "תספורת", ar: "قصة شعر" },
+      description: { he: "תספורת מקצועית", ar: "قصة شعر احترافية" },
+      duration: 30,
+      price: 5000,
+      isActive: true,
+    });
+    const s2 = await ctx.db.insert("services", {
+      businessId,
+      name: { he: "תספורת + זקן", ar: "قصة شعر ولحية" },
+      description: { he: "תספורת ועיצוב זקן", ar: "قصة شعر وتشكيل لحية" },
+      duration: 45,
+      price: 7000,
+      isActive: true,
+    });
+    const s3 = await ctx.db.insert("services", {
+      businessId,
+      name: { he: "צביעה", ar: "صباغة" },
+      description: { he: "צביעת שיער מקצועית", ar: "صباغة شعر احترافية" },
+      duration: 90,
+      price: 15000,
+      isActive: true,
+    });
+    const s4 = await ctx.db.insert("services", {
+      businessId,
+      name: { he: "טיפול שיער", ar: "علاج الشعر" },
+      description: { he: "טיפול שיער מזין ומשקם", ar: "علاج مغذٍ ومرمم للشعر" },
+      duration: 60,
+      price: 12000,
+      isActive: true,
+    });
+
+    // Seed a default barber linked to all default services
+    await ctx.db.insert("barbers", {
+      businessId,
+      name: { he: nameHe, ar: nameHe },
+      role: { he: "בעל העסק", ar: "صاحب العمل" },
+      specializedServices: [s1, s2, s3, s4],
+      isActive: true,
+    });
+
     return { businessId, temporaryPassword: tempPassword, salonLink };
   },
 });
