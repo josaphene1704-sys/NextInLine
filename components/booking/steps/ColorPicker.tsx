@@ -164,9 +164,10 @@ export default function ColorPicker({
                         loading="lazy"
                       />
                     </div>
-                    <p className="text-[11px] font-semibold text-center py-1 px-0.5 bg-white leading-tight truncate">
-                      {c.nameHe}
-                    </p>
+                    <div className="bg-white text-center py-1 px-1">
+                      <p className="text-[11px] font-bold text-gray-700 leading-none mb-0.5">{c.code}</p>
+                      <p className="text-[11px] font-semibold leading-tight break-words hyphens-auto">{c.nameHe}</p>
+                    </div>
                     {isActive && (
                       <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center shadow">
                         <Check className="w-2.5 h-2.5 text-white" />
