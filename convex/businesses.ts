@@ -28,11 +28,11 @@ export const getBySlug = query({
   },
 });
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Internal clone helpers ───────────────────────────────────────────────────
 
 /**
  * Clones all services from `templateId` into `targetId`.
- * Returns a map of old serviceId → new serviceId so barbers can be remapped.
+ * Returns a map of old serviceId → new serviceId so barbers/gallery can be remapped.
  */
 async function cloneServices(
   ctx: any,
@@ -77,6 +77,31 @@ async function cloneBarbers(
       ...rest,
       businessId: targetId,
       specializedServices: newSpecialized,
+    });
+  }
+}
+
+/**
+ * Clones gallery photos from `templateId` into `targetId`.
+ * storageId values are shared (Convex storage is global); serviceId is remapped.
+ */
+async function cloneGallery(
+  ctx: any,
+  templateId: Id<"businesses">,
+  targetId: Id<"businesses">,
+  serviceIdMap: Record<string, Id<"services">>
+): Promise<void> {
+  const photos = await ctx.db
+    .query("gallery")
+    .withIndex("by_business", (q: any) => q.eq("businessId", templateId))
+    .take(200);
+
+  for (const photo of photos) {
+    const { _id, _creationTime, businessId: _bid, serviceId, ...rest } = photo;
+    await ctx.db.insert("gallery", {
+      ...rest,
+      businessId: targetId,
+      serviceId: serviceId ? (serviceIdMap[serviceId] ?? undefined) : undefined,
     });
   }
 }
@@ -128,6 +153,82 @@ async function seedHardcodedDefaults(
   });
 }
 
+/**
+ * Finds the designated template business.
+ * Prefers a business with isTemplate:true; falls back to the oldest business
+ * that isn't the one being initialized.
+ */
+async function findTemplateBusiness(
+  ctx: any,
+  excludeId: Id<"businesses">
+): Promise<any | null> {
+  const tagged = await ctx.db
+    .query("businesses")
+    .withIndex("by_template", (q: any) => q.eq("isTemplate", true))
+    .first();
+  if (tagged && tagged._id !== excludeId) return tagged;
+
+  const all = await ctx.db.query("businesses").take(20);
+  return all.find((b: any) => b._id !== excludeId) ?? null;
+}
+
+/**
+ * Core seeding logic: clones services, barbers, gallery, logoUrl, and imageUrl
+ * from the template business into the given business.
+ * Idempotent — skips entirely if the business already has services.
+ *
+ * Exported so settings.ts can call it during the first-login password change.
+ */
+export async function performSeedIfEmpty(
+  ctx: any,
+  businessId: Id<"businesses">
+): Promise<{ seeded: boolean; source?: string }> {
+  const business = await ctx.db.get(businessId);
+  if (!business) throw new Error("Business not found");
+
+  const existingServices = await ctx.db
+    .query("services")
+    .withIndex("by_business", (q: any) => q.eq("businessId", businessId))
+    .take(1);
+  if (existingServices.length > 0) return { seeded: false };
+
+  const template = await findTemplateBusiness(ctx, businessId);
+
+  if (template) {
+    const templateHasServices = await ctx.db
+      .query("services")
+      .withIndex("by_business", (q: any) => q.eq("businessId", template._id))
+      .take(1);
+
+    if (templateHasServices.length > 0) {
+      const serviceIdMap = await cloneServices(ctx, template._id, businessId);
+
+      const existingBarbers = await ctx.db
+        .query("barbers")
+        .withIndex("by_business", (q: any) => q.eq("businessId", businessId))
+        .take(1);
+      if (existingBarbers.length === 0) {
+        await cloneBarbers(ctx, template._id, businessId, serviceIdMap);
+      }
+
+      await cloneGallery(ctx, template._id, businessId, serviceIdMap);
+
+      const patch: Record<string, any> = {
+        workingHours: template.workingHours,
+        timezone: template.timezone ?? "Asia/Jerusalem",
+      };
+      if (template.logoUrl)  patch.logoUrl  = template.logoUrl;
+      if (template.imageUrl) patch.imageUrl = template.imageUrl;
+      await ctx.db.patch(businessId, patch);
+
+      return { seeded: true, source: "template" };
+    }
+  }
+
+  await seedHardcodedDefaults(ctx, businessId, business.name.he);
+  return { seeded: true, source: "defaults" };
+}
+
 // ─── provision ────────────────────────────────────────────────────────────────
 
 export const provision = mutation({
@@ -142,8 +243,12 @@ export const provision = mutation({
       .unique();
     if (existing) throw new Error(`הסלאג "${slug}" כבר קיים במערכת`);
 
-    // Find the template business (first existing) BEFORE inserting the new one.
-    const template = await ctx.db.query("businesses").first();
+    // Find the template BEFORE inserting the new business.
+    const tagged = await ctx.db
+      .query("businesses")
+      .withIndex("by_template", (q: any) => q.eq("isTemplate", true))
+      .first();
+    const template = tagged ?? await ctx.db.query("businesses").first();
 
     const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
     let tempPassword = "";
@@ -160,7 +265,6 @@ export const provision = mutation({
       description: { he: "", ar: "" },
       address: "",
       phone: "",
-      // Inherit working hours & timezone from the template so slot settings are identical
       workingHours: template?.workingHours ?? {
         daySchedules: [
           { day: 0, start: "09:00", end: "19:00" },
@@ -172,6 +276,8 @@ export const provision = mutation({
         slotIntervalMinutes: 30,
       },
       timezone: template?.timezone ?? "Asia/Jerusalem",
+      logoUrl: template?.logoUrl,
+      imageUrl: template?.imageUrl,
       isActive: true,
       temporaryPassword: tempPassword,
       salonLink,
@@ -180,11 +286,10 @@ export const provision = mutation({
     });
 
     if (template) {
-      // Clone all services & barbers from the template business
       const serviceIdMap = await cloneServices(ctx, template._id, businessId);
       await cloneBarbers(ctx, template._id, businessId, serviceIdMap);
+      await cloneGallery(ctx, template._id, businessId, serviceIdMap);
     } else {
-      // No template yet — seed hardcoded defaults
       await seedHardcodedDefaults(ctx, businessId, nameHe);
     }
 
@@ -254,58 +359,35 @@ export const setIsActive = mutation({
 });
 
 /**
- * Fills an empty business with services & barbers cloned from the first
- * existing business (the "template"). Falls back to hardcoded defaults
- * when no other business exists.
- * Safe to call repeatedly — no-op if this business already has services.
+ * Public wrapper around performSeedIfEmpty — kept for manual use from the
+ * Convex dashboard if ever needed. The normal path is automatic (first login).
+ * Safe to call repeatedly — no-op if services already exist.
  */
 export const seedDefaultsIfEmpty = mutation({
+  args: { businessId: v.id("businesses") },
+  handler: async (ctx, { businessId }) => {
+    return await performSeedIfEmpty(ctx, businessId);
+  },
+});
+
+/**
+ * Marks a business as the authoritative template for new-tenant seeding.
+ * Call this once from the Convex dashboard on your master salon record.
+ * Clears the flag from any previously-tagged business first.
+ */
+export const setAsTemplate = mutation({
   args: { businessId: v.id("businesses") },
   handler: async (ctx, { businessId }) => {
     const business = await ctx.db.get(businessId);
     if (!business) throw new Error("Business not found");
 
-    const existingService = await ctx.db
-      .query("services")
-      .withIndex("by_business", (q) => q.eq("businessId", businessId))
-      .take(1);
+    const previously = await ctx.db
+      .query("businesses")
+      .withIndex("by_template", (q: any) => q.eq("isTemplate", true))
+      .collect();
+    for (const b of previously) await ctx.db.patch(b._id, { isTemplate: false });
 
-    if (existingService.length > 0) return { skipped: true };
-
-    // Find a template — any other business that has services
-    const allBusinesses = await ctx.db.query("businesses").take(20);
-    const template = allBusinesses.find((b) => b._id !== businessId) ?? null;
-
-    if (template) {
-      const templateHasServices = await ctx.db
-        .query("services")
-        .withIndex("by_business", (q) => q.eq("businessId", template._id))
-        .take(1);
-
-      if (templateHasServices.length > 0) {
-        const serviceIdMap = await cloneServices(ctx, template._id, businessId);
-
-        const existingBarbers = await ctx.db
-          .query("barbers")
-          .withIndex("by_business", (q) => q.eq("businessId", businessId))
-          .take(1);
-
-        if (existingBarbers.length === 0) {
-          await cloneBarbers(ctx, template._id, businessId, serviceIdMap);
-        }
-
-        // Also inherit working hours if still at default
-        await ctx.db.patch(businessId, {
-          workingHours: template.workingHours,
-          timezone: template.timezone ?? "Asia/Jerusalem",
-        });
-
-        return { seeded: true, source: "template" };
-      }
-    }
-
-    // No usable template — fall back to hardcoded defaults
-    await seedHardcodedDefaults(ctx, businessId, business.name.he);
-    return { seeded: true, source: "defaults" };
+    await ctx.db.patch(businessId, { isTemplate: true });
+    return { success: true };
   },
 });

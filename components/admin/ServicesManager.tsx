@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, X, Scissors, Sparkles, Wand2 } from "lucide-react";
+import { Plus, Pencil, X, Scissors, Sparkles } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,25 +80,14 @@ function priceRangeLabel(s: Doc<"services">): string {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ServicesManager({ businessId }: { businessId: Id<"businesses"> }) {
-  const services      = useQuery(api.services.getAllByBusiness, { businessId });
-  const create        = useMutation(api.services.create);
-  const update        = useMutation(api.services.update);
-  const seedDefaults  = useMutation(api.businesses.seedDefaultsIfEmpty);
+  const services = useQuery(api.services.getAllByBusiness, { businessId });
+  const create   = useMutation(api.services.create);
+  const update   = useMutation(api.services.update);
 
   const [editing, setEditing] = useState<Id<"services"> | "new" | null>(null);
   const [form, setForm]       = useState<ServiceForm>(EMPTY);
   const [saving, setSaving]   = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [error, setError]     = useState<string | null>(null);
-
-  async function handleSeedDefaults() {
-    setSeeding(true);
-    try {
-      await seedDefaults({ businessId });
-    } finally {
-      setSeeding(false);
-    }
-  }
 
   function openNew() {
     setForm(EMPTY);
@@ -183,20 +172,8 @@ export function ServicesManager({ businessId }: { businessId: Id<"businesses"> }
       </div>
 
       {services.length === 0 && (
-        <div className="text-center py-10 space-y-4">
+        <div className="text-center py-10">
           <p className="text-sm text-muted-foreground">אין שירותים עדיין</p>
-          <Button
-            variant="outline"
-            onClick={handleSeedDefaults}
-            disabled={seeding}
-            className="gap-2"
-          >
-            <Wand2 className="w-4 h-4" />
-            {seeding ? "יוצר שירותים..." : "מלא שירותי ברירת מחדל"}
-          </Button>
-          <p className="text-xs text-muted-foreground/70">
-            יוצר 4 שירותים סטנדרטיים וספר ראשוני — ניתן לערוך לאחר מכן
-          </p>
         </div>
       )}
 

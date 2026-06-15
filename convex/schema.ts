@@ -43,7 +43,10 @@ export default defineSchema({
     salonLink: v.optional(v.string()),
     adminPassword: v.optional(v.string()),
     isFirstLogin: v.optional(v.boolean()),
-  }).index("by_slug", ["slug"]),
+    isTemplate: v.optional(v.boolean()),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_template", ["isTemplate"]),
 
   // ─── barbers ─────────────────────────────────────────────────────────────
   barbers: defineTable({

@@ -1,5 +1,6 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { performSeedIfEmpty } from "./businesses";
 
 const DEFAULT_PASSWORD = "admin10";
 
@@ -67,6 +68,9 @@ export const forceChangePasswordOnFirstLogin = mutation({
         adminPassword: args.newPassword,
         isFirstLogin: false,
       });
+      // Auto-seed services, barbers, gallery, and profile images from the template.
+      // Idempotent — no-op if the business was already seeded during provision.
+      await performSeedIfEmpty(ctx, args.businessId);
       return;
     }
 
