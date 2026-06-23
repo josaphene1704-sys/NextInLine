@@ -121,6 +121,18 @@ export const forceChangePasswordOnFirstLogin = mutation({
   },
 });
 
+// ─── verifyMasterPassword ────────────────────────────────────────────────────
+
+const MASTER_PASSWORD = "boss2025";
+
+export const verifyMasterPassword = mutation({
+  args: { password: v.string() },
+  handler: async (_ctx, { password }) => {
+    if (password !== MASTER_PASSWORD) throw new Error("סיסמה שגויה");
+    return { ok: true };
+  },
+});
+
 // ─── updateAdminPassword ──────────────────────────────────────────────────────
 
 export const updateAdminPassword = mutation({
