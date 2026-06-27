@@ -196,6 +196,7 @@ export default function BookingWizard({ businessId }: { businessId: Id<"business
       {/* Step 3 — Date/Time */}
       {step === 3 && state.service && state.barber && (
         <DateTimePicker
+          businessId={businessId}
           barberId={state.barber._id}
           serviceId={state.service._id}
           selectedDate={state.date}

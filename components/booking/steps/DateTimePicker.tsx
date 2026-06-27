@@ -6,7 +6,8 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useLang } from "@/contexts/LanguageContext";
 import { cn, toDateStr, formatSlotTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { ChevronRight, ChevronLeft, ClipboardList } from "lucide-react";
+import { WaitingListModal } from "@/components/booking/WaitingListModal";
 
 interface TimeSlot {
   startTime: number;
@@ -15,6 +16,7 @@ interface TimeSlot {
 }
 
 interface Props {
+  businessId: Id<"businesses">;
   barberId: Id<"barbers">;
   serviceId: Id<"services">;
   selectedDate: string | null;
@@ -36,15 +38,17 @@ const MONTHS_AR = [
 ];
 
 const labels = {
-  title:          { he: "בחרי תאריך ושעה",        ar: "اختاري التاريخ والوقت" },
-  subtitle:       { he: "מתי תרצי להגיע?",         ar: "متى تودين الحضور؟" },
-  back:           { he: "חזור",                     ar: "رجوع" },
-  availableSlots: { he: "שעות פנויות",              ar: "المواعيد المتاحة" },
-  noSlots:        { he: "אין שעות פנויות ביום זה", ar: "لا توجد مواعيد في هذا اليوم" },
-  notWorking:     { he: "יום מנוחה",                ar: "يوم إجازة" },
-  loading:        { he: "טוען שעות...",             ar: "جاري تحميل المواعيد..." },
-  taken:          { he: "תפוס",                     ar: "محجوز" },
-  selectDate:     { he: "בחרי תאריך מהלוח",        ar: "اختاري تاريخاً من التقويم" },
+  title:            { he: "בחרי תאריך ושעה",                ar: "اختاري التاريخ والوقت" },
+  subtitle:         { he: "מתי תרצי להגיע?",                ar: "متى تودين الحضور؟" },
+  back:             { he: "חזור",                            ar: "رجوع" },
+  availableSlots:   { he: "שעות פנויות",                    ar: "المواعيد المتاحة" },
+  noSlots:          { he: "אין שעות פנויות ביום זה",        ar: "لا توجد مواعيد في هذا اليوم" },
+  notWorking:       { he: "יום מנוחה",                      ar: "يوم إجازة" },
+  loading:          { he: "טוען שעות...",                   ar: "جاري تحميل المواعيد..." },
+  taken:            { he: "תפוס",                            ar: "محجوز" },
+  selectDate:       { he: "בחרי תאריך מהלוח",               ar: "اختاري تاريخاً من التقويم" },
+  waitingListCta:   { he: "הצטרפי לרשימת המתנה ליום זה",   ar: "انضمي إلى قائمة الانتظار لهذا اليوم" },
+  waitingListDesc:  { he: "נעדכן אותך ברגע שיפתח מקום פנוי", ar: "سنُعلمك فور توفر موعد" },
 };
 
 /** Returns an array of cells for the calendar grid; null = empty leading cell */
@@ -59,6 +63,7 @@ function buildCalendarCells(year: number, month: number): (Date | null)[] {
 }
 
 export default function DateTimePicker({
+  businessId,
   barberId,
   serviceId,
   selectedDate,
@@ -68,6 +73,8 @@ export default function DateTimePicker({
   onBack,
 }: Props) {
   const { lang, t } = useLang();
+
+  const [waitingListOpen, setWaitingListOpen] = useState(false);
 
   // Calendar month state (first day of the displayed month)
   const [calMonth, setCalMonth] = useState<Date>(() => {
@@ -209,6 +216,23 @@ export default function DateTimePicker({
               </div>
             )}
 
+          {/* Waiting list CTA — show whenever all slots are booked on a working day */}
+          {slotsResult?.isWorkingDay && slotsResult.slots.length === 0 && selectedDate && (
+            <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
+              <ClipboardList className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-primary">{t(labels.waitingListCta)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t(labels.waitingListDesc)}</p>
+                <button
+                  onClick={() => setWaitingListOpen(true)}
+                  className="mt-3 w-full rounded-lg bg-primary text-primary-foreground text-sm font-medium py-2 hover:bg-primary/90 transition-colors"
+                >
+                  {t(labels.waitingListCta)}
+                </button>
+              </div>
+            </div>
+          )}
+
           {slotsResult?.isWorkingDay &&
             (slotsResult.slots.length > 0 || (slotsResult.bookedSlots ?? []).length > 0) && (() => {
               // Merge and sort all slots by startTime
@@ -259,6 +283,17 @@ export default function DateTimePicker({
         <ChevronRight className="w-4 h-4" />
         {t(labels.back)}
       </Button>
+
+      {waitingListOpen && selectedDate && (
+        <WaitingListModal
+          businessId={businessId}
+          barberId={barberId}
+          serviceId={serviceId}
+          date={selectedDate}
+          onClose={() => setWaitingListOpen(false)}
+          onSuccess={() => setWaitingListOpen(false)}
+        />
+      )}
     </div>
   );
 }

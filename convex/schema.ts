@@ -143,4 +143,29 @@ export default defineSchema({
     key: v.string(),
     value: v.string(),
   }).index("by_key", ["key"]),
+
+  // ─── waitingList ─────────────────────────────────────────────────────────
+  waitingList: defineTable({
+    businessId: v.id("businesses"),
+    barberId: v.optional(v.id("barbers")),
+    serviceId: v.optional(v.id("services")),
+    date: v.string(), // "YYYY-MM-DD"
+    timePreference: v.union(
+      v.literal("morning"),   // בוקר 06:00–13:00
+      v.literal("evening"),   // ערב  13:00–21:00
+      v.literal("any")        // כל היום
+    ),
+    customerName: v.string(),
+    customerPhone: v.string(),
+    status: v.union(
+      v.literal("waiting"),
+      v.literal("notified"),
+      v.literal("booked"),
+      v.literal("expired")
+    ),
+    notes: v.optional(v.string()),
+  })
+    .index("by_business_date", ["businessId", "date"])
+    .index("by_business_date_status", ["businessId", "date", "status"])
+    .index("by_customer_phone", ["customerPhone"]),
 });

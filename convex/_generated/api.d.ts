@@ -19,6 +19,7 @@ import type * as seed from "../seed.js";
 import type * as services from "../services.js";
 import type * as settings from "../settings.js";
 import type * as specialSchedules from "../specialSchedules.js";
+import type * as waitingList from "../waitingList.js";
 import type * as whatsapp from "../whatsapp.js";
 
 import type {
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   services: typeof services;
   settings: typeof settings;
   specialSchedules: typeof specialSchedules;
+  waitingList: typeof waitingList;
   whatsapp: typeof whatsapp;
 }>;
 

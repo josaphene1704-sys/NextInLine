@@ -12,7 +12,7 @@ import { CustomerProfileDrawer } from "@/components/admin/CustomerProfileDrawer"
 import { RescheduleModal } from "@/components/booking/RescheduleModal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, CalendarClock } from "lucide-react";
+import { CheckCircle2, XCircle, CalendarClock, ClipboardList, Trash2, ChevronDown, Bell, MessageCircle } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
   pending:   "ממתין",
@@ -82,6 +82,32 @@ function buildCancelWhatsAppUrl(
   const biz = businessName ? ` ב${businessName}` : "";
   const svc = serviceName ? ` ל${serviceName}` : "";
   const message = `היי ${name}! לצערנו, התור שלך${svc} שהיה בתאריך ${dateStr} בשעה ${timeStr}${biz} בוטל. ניתן לקבוע תור חדש באתר. מצטערים על אי הנוחות 🙏`;
+  return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildWaitingListWhatsAppUrl(
+  phone: string,
+  name: string,
+  dateStr: string,
+  freeTimes: string[],
+  businessName: string,
+  salonLink: string,
+): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dateLabel = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("he-IL", {
+    weekday: "long", day: "numeric", month: "long", timeZone: "UTC",
+  });
+  const biz = businessName ? ` ב${businessName}` : "";
+  const timesLine = freeTimes.length > 0
+    ? `\nשעות פנויות: ${freeTimes.join(", ")}`
+    : "";
+  const linkLine = salonLink ? `\nלקביעת תור: ${salonLink}` : "";
+  const message =
+    `היי ${name}! 📅\n` +
+    `נפתח מקום פנוי${biz} לתאריך ${dateLabel}.` +
+    timesLine +
+    linkLine +
+    `\nנשמח לראותך! 💖`;
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
 }
 
@@ -333,10 +359,12 @@ export function AppointmentsCalendar({
   businessId,
   timezone,
   businessName = "",
+  salonLink = "",
 }: {
   businessId: Id<"businesses">;
   timezone: string;
   businessName?: string;
+  salonLink?: string;
 }) {
   const barbers = useQuery(api.barbers.getAllByBusiness, { businessId });
   const [selectedBarber, setSelectedBarber] = useState<string>("");
@@ -349,21 +377,44 @@ export function AppointmentsCalendar({
     barberId: selectedBarber ? (selectedBarber as Id<"barbers">) : undefined,
   });
 
-  const updateStatus = useMutation(api.appointments.updateAppointmentStatus);
+  const updateStatus  = useMutation(api.appointments.updateAppointmentStatus);
+  const removeWaiting = useMutation(api.waitingList.removeEntry);
 
-  const [customerDrawer, setCustomerDrawer] = useState<{ phone: string; name: string } | null>(null);
+  const waitingListAll = useQuery(api.waitingList.getForBusiness, { businessId });
+
+  const [customerDrawer,     setCustomerDrawer]     = useState<{ phone: string; name: string } | null>(null);
+  const [waitingOpenDates,   setWaitingOpenDates]   = useState<Set<string>>(new Set());
+
+  function toggleWaitingDate(dateStr: string) {
+    setWaitingOpenDates((prev) => {
+      const next = new Set(prev);
+      next.has(dateStr) ? next.delete(dateStr) : next.add(dateStr);
+      return next;
+    });
+  }
 
   if (!barbers || !appointments) {
     return <div className="text-muted-foreground text-sm">טוען תורים...</div>;
   }
 
+  // Group appointments by date
   const byDate: Record<string, typeof appointments> = {};
   for (const appt of appointments) {
     const dateStr = toDateStr(new Date(appt.startTime));
     (byDate[dateStr] ??= []).push(appt);
   }
 
-  const dates = Object.keys(byDate).sort();
+  // Group waiting list by date — only future / today entries with status "waiting" or "notified"
+  const todayStr = toDateStr(new Date());
+  const byWaiting: Record<string, NonNullable<typeof waitingListAll>> = {};
+  for (const entry of waitingListAll ?? []) {
+    if (entry.date < todayStr) continue;
+    if (entry.status === "booked" || entry.status === "expired") continue;
+    (byWaiting[entry.date] ??= []).push(entry);
+  }
+
+  // Merge date keys so dates with only waiting-list entries are shown too
+  const dates = [...new Set([...Object.keys(byDate), ...Object.keys(byWaiting)])].sort();
 
   return (
     <div className="space-y-4">
@@ -419,6 +470,16 @@ export function AppointmentsCalendar({
         const isToday = dateStr === toDateStr(new Date());
         const display = `${d.getUTCDate()}/${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`;
 
+        const waitingForDate = byWaiting[dateStr] ?? [];
+
+        // Freed slots = cancelled appointments on this date whose time has been freed
+        const cancelledOnDate = (byDate[dateStr] ?? []).filter(a => a.status === "cancelled");
+        const freeTimes = cancelledOnDate.map(a => formatSlotTime(a.startTime, timezone, "he"));
+        const hasFreedSlots = freeTimes.length > 0 && waitingForDate.length > 0;
+
+        // Auto-expand the waiting list when a slot was freed
+        const isWaitingOpen = waitingOpenDates.has(dateStr) || hasFreedSlots;
+
         return (
           <div key={dateStr}>
             <div className="flex items-center gap-2 mb-2">
@@ -430,10 +491,17 @@ export function AppointmentsCalendar({
                   היום
                 </Badge>
               )}
+              {/* Alert badge when slot freed + waiting list exists */}
+              {hasFreedSlots && (
+                <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 animate-pulse">
+                  <Bell className="w-3 h-3" />
+                  יש ממתינים — שעה התפנתה!
+                </span>
+              )}
             </div>
 
             <div className="space-y-2">
-              {byDate[dateStr].map((appt) => (
+              {(byDate[dateStr] ?? []).map((appt) => (
                 <AdminApptCard
                   key={appt._id}
                   appt={appt}
@@ -444,6 +512,105 @@ export function AppointmentsCalendar({
                 />
               ))}
             </div>
+
+            {/* Waiting list for this date */}
+            {waitingForDate.length > 0 && (
+              <div className="mt-3">
+                {/* Alert banner when freed slots exist */}
+                {hasFreedSlots && (
+                  <div className="mb-2 flex items-start gap-2 rounded-xl border border-orange-300 bg-orange-50 dark:bg-orange-900/10 dark:border-orange-700/40 px-3 py-2">
+                    <Bell className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+                    <div className="text-xs text-orange-800 dark:text-orange-300">
+                      <span className="font-semibold">תור התפנה! </span>
+                      שעות שהתפנו: <span className="font-mono font-semibold">{freeTimes.join(", ")}</span>
+                      <span className="text-orange-600 dark:text-orange-400"> — שלחי הודעה לממתינות</span>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => toggleWaitingDate(dateStr)}
+                  className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  רשימת המתנה ({waitingForDate.length})
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform ${isWaitingOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {isWaitingOpen && (
+                  <div className="mt-2 space-y-1.5">
+                    {waitingForDate.map((entry, idx) => {
+                      const timePrefLabel: Record<string, string> = {
+                        morning: "בוקר",
+                        evening: "ערב",
+                        any:     "כל היום",
+                      };
+                      const waUrl = buildWaitingListWhatsAppUrl(
+                        entry.customerPhone,
+                        entry.customerName,
+                        dateStr,
+                        freeTimes,
+                        businessName,
+                        salonLink,
+                      );
+                      return (
+                        <div
+                          key={entry._id}
+                          className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-xs transition-colors ${
+                            hasFreedSlots
+                              ? "border-orange-300 bg-orange-50/60 dark:bg-orange-900/10 dark:border-orange-700/40"
+                              : "border-border/60 bg-muted/30"
+                          }`}
+                        >
+                          <span className="font-mono text-muted-foreground w-4 shrink-0">
+                            {idx + 1}.
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold">{entry.customerName}</span>
+                            <span className="text-muted-foreground mx-1">·</span>
+                            <span dir="ltr" className="text-muted-foreground">{entry.customerPhone}</span>
+                            <span className="text-muted-foreground mx-1">·</span>
+                            <span className="text-muted-foreground">{timePrefLabel[entry.timePreference]}</span>
+                            {entry.notes && (
+                              <span className="text-muted-foreground italic mr-1">({entry.notes})</span>
+                            )}
+                          </div>
+                          <Badge
+                            variant={entry.status === "notified" ? "default" : "secondary"}
+                            className="text-[10px] py-0 shrink-0"
+                          >
+                            {entry.status === "notified" ? "עודכן" : "ממתין"}
+                          </Badge>
+                          {/* WhatsApp send button */}
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="שלח WhatsApp עם השעות הפנויות"
+                            className={`shrink-0 transition-colors ${
+                              hasFreedSlots
+                                ? "text-green-600 hover:text-green-700"
+                                : "text-muted-foreground hover:text-green-600"
+                            }`}
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </a>
+                          <button
+                            onClick={() => removeWaiting({ entryId: entry._id })}
+                            className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                            title="הסר מהרשימה"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

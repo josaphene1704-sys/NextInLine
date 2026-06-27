@@ -100,6 +100,7 @@ export default function SalonAdminPage() {
             businessId={business._id}
             timezone={business.timezone ?? "UTC"}
             businessName={business.name.he}
+            salonLink={business.salonLink ?? (business.slug ? `/salon/${business.slug}` : "")}
           />
         )}
       </main>

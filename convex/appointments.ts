@@ -334,6 +334,23 @@ export const updateAppointmentStatus = mutation({
     }
 
     await ctx.db.patch(appointmentId, { status });
+
+    // When an appointment is cancelled, notify anyone on the waiting list for
+    // that date so they can grab the newly freed slot.
+    if (status === "cancelled") {
+      const d = new Date(appointment.startTime);
+      const dateStr =
+        `${d.getUTCFullYear()}-` +
+        `${String(d.getUTCMonth() + 1).padStart(2, "0")}-` +
+        `${String(d.getUTCDate()).padStart(2, "0")}`;
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.waitingList.processDateWaitingList,
+        { businessId: appointment.businessId, date: dateStr }
+      );
+    }
+
     return { success: true };
   },
 });
