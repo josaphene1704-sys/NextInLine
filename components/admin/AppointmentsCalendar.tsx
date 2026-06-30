@@ -414,7 +414,7 @@ export function AppointmentsCalendar({
   }
 
   // Merge date keys so dates with only waiting-list entries are shown too
-  const dates = [...new Set([...Object.keys(byDate), ...Object.keys(byWaiting)])].sort();
+  const dates = Array.from(new Set([...Object.keys(byDate), ...Object.keys(byWaiting)])).sort();
 
   return (
     <div className="space-y-4">
