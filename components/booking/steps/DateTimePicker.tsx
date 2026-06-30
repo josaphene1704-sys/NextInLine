@@ -49,6 +49,7 @@ const labels = {
   selectDate:       { he: "בחרי תאריך מהלוח",               ar: "اختاري تاريخاً من التقويم" },
   waitingListCta:   { he: "הצטרפי לרשימת המתנה ליום זה",   ar: "انضمي إلى قائمة الانتظار لهذا اليوم" },
   waitingListDesc:  { he: "נעדכן אותך ברגע שיפתח מקום פנוי", ar: "سنُعلمك فور توفر موعد" },
+  waitingListLink:  { he: "לא מצאת שעה מתאימה? הצטרפי לרשימת המתנה", ar: "لم تجدي موعدًا مناسبًا؟ انضمي لقائمة الانتظار" },
 };
 
 /** Returns an array of cells for the calendar grid; null = empty leading cell */
@@ -216,8 +217,11 @@ export default function DateTimePicker({
               </div>
             )}
 
-          {/* Waiting list CTA — show whenever all slots are booked on a working day */}
-          {slotsResult?.isWorkingDay && slotsResult.slots.length === 0 && selectedDate && (
+          {/* Waiting list CTA — prominent when all slots booked, always shown when any are taken */}
+          {slotsResult?.isWorkingDay &&
+            slotsResult.slots.length === 0 &&
+            (slotsResult.bookedSlots ?? []).length > 0 &&
+            selectedDate && (
             <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
               <ClipboardList className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
@@ -240,36 +244,50 @@ export default function DateTimePicker({
               const avail  = slotsResult.slots.map((s) => ({ ...s, taken: false }));
               const all = [...avail, ...booked].sort((a, b) => a.startTime - b.startTime);
 
+              const hasBooked = booked.length > 0;
               return (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {all.map((slot) => {
-                    const isSelected = selectedSlot?.startTime === slot.startTime;
-                    if (slot.taken) {
+                <>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {all.map((slot) => {
+                      const isSelected = selectedSlot?.startTime === slot.startTime;
+                      if (slot.taken) {
+                        return (
+                          <div
+                            key={slot.startTime}
+                            className="slot-btn flex flex-col items-center justify-center gap-0.5 opacity-50 cursor-not-allowed bg-muted/40 border border-border/40"
+                          >
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {formatSlotTime(slot.startTime, timezone, lang)}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground/70">
+                              {t(labels.taken)}
+                            </span>
+                          </div>
+                        );
+                      }
                       return (
-                        <div
+                        <button
                           key={slot.startTime}
-                          className="slot-btn flex flex-col items-center justify-center gap-0.5 opacity-50 cursor-not-allowed bg-muted/40 border border-border/40"
+                          onClick={() => onSelectSlot(slot)}
+                          className={cn("slot-btn", isSelected ? "slot-selected" : "slot-available")}
                         >
-                          <span className="text-xs font-medium text-muted-foreground">
-                            {formatSlotTime(slot.startTime, timezone, lang)}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/70">
-                            {t(labels.taken)}
-                          </span>
-                        </div>
+                          {formatSlotTime(slot.startTime, timezone, lang)}
+                        </button>
                       );
-                    }
-                    return (
-                      <button
-                        key={slot.startTime}
-                        onClick={() => onSelectSlot(slot)}
-                        className={cn("slot-btn", isSelected ? "slot-selected" : "slot-available")}
-                      >
-                        {formatSlotTime(slot.startTime, timezone, lang)}
-                      </button>
-                    );
-                  })}
-                </div>
+                    })}
+                  </div>
+
+                  {/* Secondary waiting-list link — always visible when any slots are taken */}
+                  {hasBooked && selectedDate && (
+                    <button
+                      onClick={() => setWaitingListOpen(true)}
+                      className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border border-border/60 py-2.5 text-xs text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      {t(labels.waitingListLink)}
+                    </button>
+                  )}
+                </>
               );
             })()}
         </div>
