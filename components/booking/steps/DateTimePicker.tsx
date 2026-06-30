@@ -209,30 +209,24 @@ export default function DateTimePicker({
             </div>
           )}
 
-          {slotsResult?.isWorkingDay &&
-            slotsResult.slots.length === 0 &&
-            (slotsResult.bookedSlots ?? []).length === 0 && (
-              <div className="text-center text-muted-foreground py-8 glass rounded-2xl">
+          {/* No slots at all — show message + waiting list CTA */}
+          {slotsResult?.isWorkingDay && slotsResult.slots.length === 0 && selectedDate && (
+            <div className="space-y-3">
+              <div className="text-center text-muted-foreground py-6 glass rounded-2xl">
                 {t(labels.noSlots)}
               </div>
-            )}
-
-          {/* Waiting list CTA — prominent when all slots booked, always shown when any are taken */}
-          {slotsResult?.isWorkingDay &&
-            slotsResult.slots.length === 0 &&
-            (slotsResult.bookedSlots ?? []).length > 0 &&
-            selectedDate && (
-            <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
-              <ClipboardList className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-primary">{t(labels.waitingListCta)}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{t(labels.waitingListDesc)}</p>
-                <button
-                  onClick={() => setWaitingListOpen(true)}
-                  className="mt-3 w-full rounded-lg bg-primary text-primary-foreground text-sm font-medium py-2 hover:bg-primary/90 transition-colors"
-                >
-                  {t(labels.waitingListCta)}
-                </button>
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
+                <ClipboardList className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-primary">{t(labels.waitingListCta)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t(labels.waitingListDesc)}</p>
+                  <button
+                    onClick={() => setWaitingListOpen(true)}
+                    className="mt-3 w-full rounded-lg bg-primary text-primary-foreground text-sm font-medium py-2 hover:bg-primary/90 transition-colors"
+                  >
+                    {t(labels.waitingListCta)}
+                  </button>
+                </div>
               </div>
             </div>
           )}
