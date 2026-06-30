@@ -14,7 +14,8 @@ export const getById = query({
 export const getAll = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("businesses").collect();
+    const businesses = await ctx.db.query("businesses").take(200);
+    return businesses.map(({ temporaryPassword: _tp, adminPassword: _ap, ...safe }) => safe);
   },
 });
 

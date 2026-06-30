@@ -121,6 +121,82 @@ export const forceChangePasswordOnFirstLogin = mutation({
   },
 });
 
+// ─── activateAndSetPassword ───────────────────────────────────────────────────
+//
+// Atomic first-login activation + password change.
+//
+// Security model:
+//   • Verify + write happen inside a single Convex transaction — no TOCTOU gap.
+//   • currentPassword is checked server-side; the client cannot skip this step.
+//   • Works for both first-login (temp password) and regular password change.
+//   • forceChangePasswordOnFirstLogin is kept for backward compat but should
+//     no longer be called from the client for sensitive flows.
+
+export const activateAndSetPassword = mutation({
+  args: {
+    businessId: v.id("businesses"),
+    currentPassword: v.string(),
+    newPassword: v.string(),
+    // Optional profile fields updated atomically in the same transaction
+    nameHe: v.optional(v.string()),
+    nameAr: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    address: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    { businessId, currentPassword, newPassword, nameHe, nameAr, phone, address }
+  ): Promise<{ wasFirstLogin: boolean }> => {
+    // 1. Load — never trust a client-supplied identity claim.
+    const business = await ctx.db.get(businessId);
+    if (!business) throw new Error("מספרה לא נמצאה");
+    if (business.isActive === false) throw new Error("החשבון מושהה");
+
+    // 2. Decide which stored secret to compare against.
+    //    First-login → accept temporaryPassword.
+    //    Subsequent change → accept current adminPassword.
+    const isFirstLogin = business.isFirstLogin !== false;
+    const expected = isFirstLogin
+      ? business.temporaryPassword
+      : business.adminPassword;
+
+    if (!expected || expected !== currentPassword) {
+      throw new Error("הסיסמה הנוכחית שגויה");
+    }
+
+    // 3. Validate the new password before touching the DB.
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error("הסיסמה החדשה חייבת להכיל לפחות 6 תווים");
+    }
+    if (newPassword === currentPassword) {
+      throw new Error("הסיסמה החדשה חייבת להיות שונה מהנוכחית");
+    }
+
+    // 4. Build the patch — only include profile fields that were actually sent.
+    const patch: Record<string, unknown> = {
+      adminPassword: newPassword,
+      isFirstLogin: false,
+    };
+    if (nameHe !== undefined || nameAr !== undefined) {
+      patch.name = {
+        he: nameHe ?? business.name.he,
+        ar: nameAr ?? business.name.ar,
+      };
+    }
+    if (phone !== undefined)   patch.phone   = phone;
+    if (address !== undefined) patch.address = address;
+
+    await ctx.db.patch(businessId, patch);
+
+    // 5. Seed services/barbers/gallery on first activation only.
+    if (isFirstLogin) {
+      await performSeedIfEmpty(ctx, businessId);
+    }
+
+    return { wasFirstLogin: isFirstLogin };
+  },
+});
+
 // ─── verifyMasterPassword ────────────────────────────────────────────────────
 
 const MASTER_PASSWORD = "boss2025";

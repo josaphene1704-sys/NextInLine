@@ -37,7 +37,7 @@ export function AdminPasswordModal({
   const [loading, setLoading] = useState(false);
 
   const verifyPassword = useMutation(api.settings.verifyAdminPassword);
-  const forceChangePassword = useMutation(api.settings.forceChangePasswordOnFirstLogin);
+  const activateAndSetPassword = useMutation(api.settings.activateAndSetPassword);
   const router = useRouter();
 
   function handleClose() {
@@ -81,11 +81,17 @@ export function AdminPasswordModal({
 
   async function handleForceChange(e: React.FormEvent) {
     e.preventDefault();
-    if (!newPassword || newPassword.length < 4) return;
+    if (!businessId || !newPassword || newPassword.length < 6) return;
     setLoading(true);
     setError(null);
     try {
-      await forceChangePassword({ newPassword, businessId });
+      // Atomic: server re-verifies the temp password and sets the new one
+      // in a single transaction — the client cannot skip the verification step.
+      await activateAndSetPassword({
+        businessId,
+        currentPassword: password, // the temp password entered in the login phase
+        newPassword,
+      });
       localStorage.setItem(authKey, "1");
       handleClose();
       router.push(adminSuccessPath);
@@ -200,7 +206,7 @@ export function AdminPasswordModal({
                       type={showNewPassword ? "text" : "password"}
                       value={newPassword}
                       onChange={(e) => { setNewPassword(e.target.value); setError(null); }}
-                      placeholder="לפחות 4 תווים..."
+                      placeholder="לפחות 6 תווים..."
                       dir="ltr"
                       className="pl-10"
                       autoFocus
@@ -225,7 +231,7 @@ export function AdminPasswordModal({
                 <Button
                   type="submit"
                   className="w-full gap-2"
-                  disabled={loading || !newPassword || newPassword.length < 4}
+                  disabled={loading || !newPassword || newPassword.length < 6}
                 >
                   {loading
                     ? <><Loader2 className="w-4 h-4 animate-spin" />שומרת...</>
