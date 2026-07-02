@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useLang } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import BookingWizard from "@/components/booking/BookingWizard";
+import { UpcomingAppointmentsBanner } from "@/components/booking/UpcomingAppointmentsBanner";
 import AuthWidget from "@/components/AuthWidget";
 import { AdminPasswordModal } from "@/components/AdminPasswordModal";
 import { Sparkles, MapPin, Phone, AlertCircle } from "lucide-react";
@@ -30,6 +32,7 @@ export default function SalonPage() {
   const params = useParams();
   const slug = params.slug as string;
   const { t } = useLang();
+  const { user } = useAuth();
 
   const business = useQuery(api.businesses.getBySlug, { slug });
   const [adminModalOpen, setAdminModalOpen] = useState(false);
@@ -120,6 +123,14 @@ export default function SalonPage() {
 
       {business && showGallery && (
         <GallerySection businessId={business._id} onClose={() => setShowGallery(false)} />
+      )}
+
+      {/* Logged-in customer: their upcoming appointments + waiting list at THIS
+          salon, with edit/cancel (cancelling frees the slot automatically). */}
+      {business && user && (
+        <div className="w-full max-w-2xl mx-auto px-4 pb-4">
+          <UpcomingAppointmentsBanner customerPhone={user.phone} businessId={business._id} />
+        </div>
       )}
 
       {business && business.isActive !== false && (
