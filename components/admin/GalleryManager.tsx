@@ -24,6 +24,7 @@ export function GalleryManager({ businessId }: { businessId: Id<"businesses"> })
 
   const [activeServiceId, setActiveServiceId] = useState<string>(ALL_KEY);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const activeServiceIdForQuery =
@@ -39,6 +40,7 @@ export function GalleryManager({ businessId }: { businessId: Id<"businesses"> })
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setUploading(true);
+    setError(null);
     try {
       for (const file of Array.from(files)) {
         const uploadUrl = await generateUploadUrl();
@@ -55,9 +57,20 @@ export function GalleryManager({ businessId }: { businessId: Id<"businesses"> })
           storageId,
         });
       }
+    } catch {
+      setError("העלאת התמונה נכשלה. נסי שוב.");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function handleRemovePhoto(galleryId: Id<"gallery">) {
+    setError(null);
+    try {
+      await removePhoto({ galleryId });
+    } catch {
+      setError("מחיקת התמונה נכשלה. נסי שוב.");
     }
   }
 
@@ -139,6 +152,12 @@ export function GalleryManager({ businessId }: { businessId: Id<"businesses"> })
         </button>
       </div>
 
+      {error && (
+        <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
+
       {/* Photo grid */}
       {visibleItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground border border-dashed border-border/60 rounded-2xl">
@@ -171,7 +190,7 @@ export function GalleryManager({ businessId }: { businessId: Id<"businesses"> })
               )}
               {/* Delete overlay */}
               <button
-                onClick={() => removePhoto({ galleryId: item._id })}
+                onClick={() => handleRemovePhoto(item._id)}
                 className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive"
                 title="מחק תמונה"
               >

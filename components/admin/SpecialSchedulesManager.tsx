@@ -50,6 +50,7 @@ export function SpecialSchedulesManager({
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -57,6 +58,7 @@ export function SpecialSchedulesManager({
 
   async function handleAdd() {
     setSaving(true);
+    setError(null);
     try {
       await upsert({
         businessId,
@@ -68,8 +70,19 @@ export function SpecialSchedulesManager({
       });
       setForm({ ...EMPTY, date: form.date });
       setShowForm(false);
+    } catch {
+      setError("השמירה נכשלה. נסי שוב.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRemove(id: Id<"specialSchedules">) {
+    setError(null);
+    try {
+      await remove({ id });
+    } catch {
+      setError("המחיקה נכשלה. נסי שוב.");
     }
   }
 
@@ -95,6 +108,12 @@ export function SpecialSchedulesManager({
           הוסף
         </Button>
       </div>
+
+      {error && (
+        <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
 
       {showForm && (
         <Card>
@@ -204,7 +223,7 @@ export function SpecialSchedulesManager({
                     </div>
                   </div>
                   <button
-                    onClick={() => remove({ id: entry._id })}
+                    onClick={() => handleRemove(entry._id)}
                     className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
                   >
                     <Trash2 className="h-4 w-4" />

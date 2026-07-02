@@ -176,10 +176,13 @@ export default function Home() {
         open={adminModalOpen}
         onOpenChange={setAdminModalOpen}
         businessId={business?._id}
+        // Route to the canonical per-salon admin, keyed by slug — the same
+        // storage key AdminSessionProvider reads there.
+        adminSuccessPath={business?.slug ? `/salon/${business.slug}/admin` : "/admin"}
         onAuthenticated={(token) => {
-          if (!business) return;
+          if (!business?.slug) return;
           localStorage.setItem(
-            `adminSession_${business._id}`,
+            `adminSession_${business.slug}`,
             JSON.stringify({ businessId: business._id, token })
           );
         }}

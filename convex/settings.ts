@@ -1,7 +1,7 @@
-import { internalMutation, mutation } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { performSeedIfEmpty } from "./businesses";
-import { issueSession, invalidateBusinessSessions } from "./authHelpers";
+import { issueSession, invalidateBusinessSessions, requireBusinessSession } from "./authHelpers";
 
 // Legacy single-tenant fallback password. Must be set via `npx convex env set
 // LEGACY_ADMIN_DEFAULT_PASSWORD ...` — fails closed (no hardcoded default) if unset.
@@ -294,6 +294,28 @@ export const updateAdminPassword = mutation({
     }
 
     return {};
+  },
+});
+
+// ─── validateSession ──────────────────────────────────────────────────────────
+//
+// Reactive boolean check for whether a session token is still valid for a given
+// business. Returns a boolean (never throws) because Convex redacts Error
+// messages in production — the client must not rely on error-message sniffing.
+// Being a query over the `sessions` table, it flips to `false` the instant the
+// session row is deleted (e.g. password rotation), so open admin tabs get
+// kicked to login live.
+
+export const validateSession = query({
+  args: { token: v.string(), businessId: v.id("businesses") },
+  returns: v.boolean(),
+  handler: async (ctx, { token, businessId }): Promise<boolean> => {
+    try {
+      await requireBusinessSession(ctx, token, businessId);
+      return true;
+    } catch {
+      return false;
+    }
   },
 });
 

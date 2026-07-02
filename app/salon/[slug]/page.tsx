@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -34,6 +34,15 @@ export default function SalonPage() {
   const business = useQuery(api.businesses.getBySlug, { slug });
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
+
+  // Open the admin login modal automatically when redirected here with ?admin=1
+  // (e.g. from the admin page after a session expired). Read from window rather
+  // than useSearchParams to avoid needing a Suspense boundary.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("admin") === "1") {
+      setAdminModalOpen(true);
+    }
+  }, []);
 
   const isLoading = business === undefined;
 

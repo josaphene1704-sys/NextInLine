@@ -65,15 +65,31 @@ function SalonAdminDashboard({
 }) {
   const [tab, setTab] = useState<TabId>("business");
   const router = useRouter();
-  const { session } = useAdminSession();
+  const { session, hydrated, clearSession } = useAdminSession();
+
+  // Server-side validation of the stored token — a stale/rotated session must
+  // not render the editor (its writes would silently fail otherwise). Reactive,
+  // so deleting the session row (e.g. password change) kicks this tab to login.
+  const sessionValid = useQuery(
+    api.settings.validateSession,
+    session ? { token: session.token, businessId: business._id } : "skip"
+  );
+
+  const localMatch = !!session && session.businessId === business._id;
 
   useEffect(() => {
-    if (!session || session.businessId !== business._id) {
-      router.replace(`/salon/${slug}`);
+    if (!hydrated) return;
+    if (!localMatch) {
+      router.replace(`/salon/${slug}?admin=1`);
+      return;
     }
-  }, [session, business._id, router, slug]);
+    if (sessionValid === false) {
+      clearSession();
+      router.replace(`/salon/${slug}?admin=1`);
+    }
+  }, [hydrated, localMatch, sessionValid, router, slug, clearSession]);
 
-  if (!session || session.businessId !== business._id) {
+  if (!hydrated || !localMatch || sessionValid !== true) {
     return (
       <div className="flex items-center justify-center min-h-screen text-muted-foreground">
         טוען...

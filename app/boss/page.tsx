@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -28,8 +28,15 @@ function readBossSession(): BossSession | null {
 }
 
 export default function BossPage() {
-  const [session, setSession] = useState<BossSession | null>(() => readBossSession());
+  const [session, setSession] = useState<BossSession | null>(null);
+  const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    setSession(readBossSession());
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
   if (!session) return <LoginScreen onSuccess={(s) => setSession(s)} />;
   return <BossDashboard session={session} onLogout={() => setSession(null)} />;
 }

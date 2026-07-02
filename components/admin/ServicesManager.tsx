@@ -159,7 +159,12 @@ export function ServicesManager({ businessId }: { businessId: Id<"businesses"> }
   }
 
   async function toggleActive(s: Doc<"services">) {
-    await update({ serviceId: s._id, isActive: !s.isActive });
+    setError(null);
+    try {
+      await update({ serviceId: s._id, isActive: !s.isActive });
+    } catch {
+      setError("שינוי הסטטוס נכשל. נסי שוב.");
+    }
   }
 
   if (!services) {
@@ -176,6 +181,12 @@ export function ServicesManager({ businessId }: { businessId: Id<"businesses"> }
           שירות חדש
         </Button>
       </div>
+
+      {error && !editing && (
+        <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
 
       {services.length === 0 && (
         <div className="text-center py-10">

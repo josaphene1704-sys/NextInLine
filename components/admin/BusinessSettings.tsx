@@ -16,7 +16,7 @@ import { useAdminSession } from "@/contexts/AdminSessionContext";
 
 export function BusinessSettings({ business }: { business: Doc<"businesses"> }) {
   const updateBusiness = useMutation(api.businesses.update);
-  const { session } = useAdminSession();
+  const { session, revalidate } = useAdminSession();
 
   const [nameHe, setNameHe] = useState(business.name.he);
   const [nameAr, setNameAr] = useState(business.name.ar);
@@ -31,7 +31,7 @@ export function BusinessSettings({ business }: { business: Doc<"businesses"> }) 
   );
   const [interval, setInterval] = useState(business.workingHours.slotIntervalMinutes ?? 30);
 
-  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   async function handleSave() {
     setStatus("saving");
@@ -44,13 +44,19 @@ export function BusinessSettings({ business }: { business: Doc<"businesses"> }) 
         address,
         phone,
         workingHours: { daySchedules: schedules, slotIntervalMinutes: interval },
-        ...(logoUrl ? { logoUrl } : {}),
-        ...(imageUrl ? { imageUrl } : {}),
+        // Always send image fields — an empty string means "remove image" and
+        // the server treats it as an explicit unset.
+        logoUrl,
+        imageUrl,
       });
       setStatus("saved");
       setTimeout(() => setStatus("idle"), 2500);
     } catch {
-      setStatus("idle");
+      // A failure is most often an expired/rotated session. Re-check it: if it's
+      // invalid, revalidate() clears it and the admin page redirects to login.
+      // Otherwise it's a transient error — surface it instead of swallowing.
+      const stillValid = await revalidate();
+      if (stillValid) setStatus("error");
     }
   }
 
@@ -113,6 +119,11 @@ export function BusinessSettings({ business }: { business: Doc<"businesses"> }) 
         </Button>
         {status === "saved" && (
           <span className="text-sm text-green-600 font-medium">נשמר בהצלחה ✓</span>
+        )}
+        {status === "error" && (
+          <span className="text-sm text-destructive font-medium">
+            השמירה נכשלה. בדקי את החיבור לאינטרנט ונסי שוב.
+          </span>
         )}
       </div>
     </div>

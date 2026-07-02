@@ -359,9 +359,14 @@ export const update = mutation({
     if (!existing) throw new Error("Business not found");
     await requireBusinessSession(ctx, token, businessId);
 
-    const patch = Object.fromEntries(
+    const patch: Record<string, unknown> = Object.fromEntries(
       Object.entries(fields).filter(([, v]) => v !== undefined)
     );
+
+    // Empty string ⇒ explicit "remove image". Patching a field to `undefined`
+    // unsets it, so the optional field disappears rather than storing "".
+    if (fields.logoUrl === "")  patch.logoUrl  = undefined;
+    if (fields.imageUrl === "") patch.imageUrl = undefined;
 
     await ctx.db.patch(businessId, patch);
     return { success: true };

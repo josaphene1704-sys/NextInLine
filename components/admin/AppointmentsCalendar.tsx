@@ -152,7 +152,7 @@ function AdminApptCard({
   timezone: string;
   businessName: string;
   onOpenCustomer: (phone: string, name: string) => void;
-  updateStatus: (args: { appointmentId: Id<"appointments">; status: "pending" | "confirmed" | "cancelled" }) => Promise<unknown>;
+  updateStatus: (args: { appointmentId: Id<"appointments">; status: "pending" | "confirmed" | "cancelled" }) => Promise<boolean>;
 }) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
@@ -230,7 +230,7 @@ function AdminApptCard({
               {appt.status === "pending" && (
                 <button
                   onClick={async () => {
-                    await updateStatus({ appointmentId: appt._id, status: "confirmed" });
+                    if (!(await updateStatus({ appointmentId: appt._id, status: "confirmed" }))) return;
                     const url = buildWhatsAppUrl(
                       appt.customerPhone,
                       appt.customerName,
@@ -258,7 +258,7 @@ function AdminApptCard({
                   </button>
                   <button
                     onClick={async () => {
-                      await updateStatus({ appointmentId: appt._id, status: "cancelled" });
+                      if (!(await updateStatus({ appointmentId: appt._id, status: "cancelled" }))) return;
                       const url = buildCancelWhatsAppUrl(
                         appt.customerPhone, appt.customerName,
                         appt.startTime, timezone,
@@ -378,10 +378,31 @@ export function AppointmentsCalendar({
   const updateStatusRaw = useMutation(api.appointments.updateAppointmentStatus);
   const removeWaitingRaw = useMutation(api.waitingList.removeEntry);
 
-  const updateStatus = (args: { appointmentId: Id<"appointments">; status: "pending" | "confirmed" | "cancelled" }) =>
-    updateStatusRaw({ ...args, token: session?.token });
-  const removeWaiting = (args: { entryId: Id<"waitingList"> }) =>
-    removeWaitingRaw({ ...args, token: session?.token ?? "" });
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Return a boolean so callers can abort follow-up side effects (WhatsApp /
+  // ICS) when the DB write failed — otherwise we'd notify the customer about a
+  // status change that never persisted.
+  const updateStatus = async (args: { appointmentId: Id<"appointments">; status: "pending" | "confirmed" | "cancelled" }): Promise<boolean> => {
+    setActionError(null);
+    try {
+      await updateStatusRaw({ ...args, token: session?.token });
+      return true;
+    } catch {
+      setActionError("הפעולה נכשלה. נסי שוב.");
+      return false;
+    }
+  };
+  const removeWaiting = async (args: { entryId: Id<"waitingList"> }): Promise<boolean> => {
+    setActionError(null);
+    try {
+      await removeWaitingRaw({ ...args, token: session?.token ?? "" });
+      return true;
+    } catch {
+      setActionError("הפעולה נכשלה. נסי שוב.");
+      return false;
+    }
+  };
 
   const waitingListAll = useQuery(api.waitingList.getForBusiness, { businessId });
 
@@ -421,6 +442,12 @@ export function AppointmentsCalendar({
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+          {actionError}
+        </p>
+      )}
+
       {dates.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-12">
           אין תורים קרובים
@@ -571,7 +598,7 @@ export function AppointmentsCalendar({
                             <MessageCircle className="w-4 h-4" />
                           </a>
                           <button
-                            onClick={() => removeWaiting({ entryId: entry._id })}
+                            onClick={() => { void removeWaiting({ entryId: entry._id }); }}
                             className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
                             title="הסר מהרשימה"
                           >
