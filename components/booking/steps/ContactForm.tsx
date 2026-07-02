@@ -4,6 +4,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useLang } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatPrice } from "@/lib/utils";
 import { calcFinalPrice, HairDetailsData } from "@/lib/hair-details";
 
@@ -68,6 +69,7 @@ export default function ContactForm({
   onBack,
 }: Props) {
   const { lang, t } = useLang();
+  const { login } = useAuth();
   const createAppointment = useMutation(api.appointments.createAppointment);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +89,10 @@ export default function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim()) return;
+
+    // Register the customer from the details they just entered, so the header
+    // greets them by name instead of "שלום אורח" (and their appointments show).
+    login(customerName.trim(), customerPhone.trim());
 
     // Deposit required → navigate to the payment screen without writing to Convex yet.
     // The appointment is created by DepositPayment only after payment succeeds.
