@@ -244,12 +244,16 @@ export function UpcomingAppointmentsBanner({
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
+  // Scope to the salon the customer is currently viewing (by its businessId) —
+  // appointments/waiting-list entries live per-business, so this banner must
+  // only show the ones booked at THIS salon. (The profile page shows all.)
   const upcoming = (allAppts ?? []).filter(
-    a => a.startTime > Date.now() && a.status !== "cancelled"
+    a => a.businessId === businessId && a.startTime > Date.now() && a.status !== "cancelled"
   );
 
   const activeWaiting = (allWaiting ?? []).filter(
     e =>
+      e.businessId === businessId &&
       (e.status === "waiting" || e.status === "notified") &&
       e.date >= todayStr
   );
