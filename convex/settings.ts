@@ -1,5 +1,5 @@
 import { internalMutation, mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { performSeedIfEmpty } from "./businesses";
 import { issueSession, invalidateBusinessSessions, requireBusinessSession } from "./authHelpers";
 
@@ -18,8 +18,8 @@ export const verifyAdminPassword = mutation({
     // Per-business auth (multi-tenant)
     if (args.businessId) {
       const business = await ctx.db.get(args.businessId);
-      if (!business) throw new Error("Business not found");
-      if (business.isActive === false) throw new Error("Account suspended");
+      if (!business) throw new ConvexError("Business not found");
+      if (business.isActive === false) throw new ConvexError("Account suspended");
 
       // First-login path: match against temporaryPassword directly, skip adminPassword entirely.
       // No token yet — the client must go through activateAndSetPassword next, which issues one.
@@ -29,7 +29,7 @@ export const verifyAdminPassword = mutation({
 
       // Normal login path: match against adminPassword only.
       const stored = business.adminPassword;
-      if (!stored || stored !== args.password) throw new Error("סיסמה שגויה");
+      if (!stored || stored !== args.password) throw new ConvexError("סיסמה שגויה");
 
       const token = await issueSession(ctx, "admin", args.businessId);
       return { isFirstLogin: business.isFirstLogin ?? false, token };
@@ -37,7 +37,7 @@ export const verifyAdminPassword = mutation({
 
     // Legacy single-tenant auth (global settings)
     const business = await ctx.db.query("businesses").first();
-    if (business && business.isActive === false) throw new Error("Account suspended");
+    if (business && business.isActive === false) throw new ConvexError("Account suspended");
 
     const setting = await ctx.db
       .query("settings")
@@ -45,7 +45,7 @@ export const verifyAdminPassword = mutation({
       .unique();
 
     const expected = setting?.value ?? DEFAULT_PASSWORD;
-    if (!expected || expected !== args.password) throw new Error("סיסמה שגויה");
+    if (!expected || expected !== args.password) throw new ConvexError("סיסמה שגויה");
 
     const firstLoginSetting = await ctx.db
       .query("settings")
@@ -75,7 +75,7 @@ export const forceChangePasswordOnFirstLogin = internalMutation({
   },
   handler: async (ctx, args): Promise<void> => {
     if (!args.newPassword || args.newPassword.length < 4) {
-      throw new Error("הסיסמה החדשה קצרה מדי");
+      throw new ConvexError("הסיסמה החדשה קצרה מדי");
     }
 
     // Per-business (multi-tenant)
@@ -165,8 +165,8 @@ export const activateAndSetPassword = mutation({
   ): Promise<{ wasFirstLogin: boolean; token: string }> => {
     // 1. Load — never trust a client-supplied identity claim.
     const business = await ctx.db.get(businessId);
-    if (!business) throw new Error("מספרה לא נמצאה");
-    if (business.isActive === false) throw new Error("החשבון מושהה");
+    if (!business) throw new ConvexError("מספרה לא נמצאה");
+    if (business.isActive === false) throw new ConvexError("החשבון מושהה");
 
     // 2. Decide which stored secret to compare against.
     //    First-login → accept temporaryPassword.
@@ -177,15 +177,15 @@ export const activateAndSetPassword = mutation({
       : business.adminPassword;
 
     if (!expected || expected !== currentPassword) {
-      throw new Error("הסיסמה הנוכחית שגויה");
+      throw new ConvexError("הסיסמה הנוכחית שגויה");
     }
 
     // 3. Validate the new password before touching the DB.
     if (!newPassword || newPassword.length < 6) {
-      throw new Error("הסיסמה החדשה חייבת להכיל לפחות 6 תווים");
+      throw new ConvexError("הסיסמה החדשה חייבת להכיל לפחות 6 תווים");
     }
     if (newPassword === currentPassword) {
-      throw new Error("הסיסמה החדשה חייבת להיות שונה מהנוכחית");
+      throw new ConvexError("הסיסמה החדשה חייבת להיות שונה מהנוכחית");
     }
 
     // 4. Build the patch — only include profile fields that were actually sent.
@@ -227,8 +227,8 @@ const MASTER_PASSWORD = process.env.BOSS_MASTER_PASSWORD;
 export const verifyMasterPassword = mutation({
   args: { password: v.string() },
   handler: async (ctx, { password }) => {
-    if (!MASTER_PASSWORD) throw new Error("Master password is not configured");
-    if (password !== MASTER_PASSWORD) throw new Error("סיסמה שגויה");
+    if (!MASTER_PASSWORD) throw new ConvexError("Master password is not configured");
+    if (password !== MASTER_PASSWORD) throw new ConvexError("סיסמה שגויה");
     const token = await issueSession(ctx, "boss");
     return { ok: true, token };
   },
@@ -244,16 +244,16 @@ export const updateAdminPassword = mutation({
   },
   handler: async (ctx, args): Promise<{ token?: string }> => {
     if (!args.newPassword || args.newPassword.length < 4) {
-      throw new Error("הסיסמה החדשה קצרה מדי");
+      throw new ConvexError("הסיסמה החדשה קצרה מדי");
     }
 
     // Per-business (multi-tenant)
     if (args.businessId) {
       const business = await ctx.db.get(args.businessId);
-      if (!business) throw new Error("Business not found");
+      if (!business) throw new ConvexError("Business not found");
 
       const stored = business.adminPassword ?? business.temporaryPassword ?? DEFAULT_PASSWORD;
-      if (!stored || stored !== args.currentPassword) throw new Error("סיסמה שגויה");
+      if (!stored || stored !== args.currentPassword) throw new ConvexError("סיסמה שגויה");
 
       await ctx.db.patch(args.businessId, {
         adminPassword: args.newPassword,
@@ -274,7 +274,7 @@ export const updateAdminPassword = mutation({
       .unique();
 
     const stored = setting?.value ?? DEFAULT_PASSWORD;
-    if (!stored || stored !== args.currentPassword) throw new Error("סיסמה שגויה");
+    if (!stored || stored !== args.currentPassword) throw new ConvexError("סיסמה שגויה");
 
     if (setting) {
       await ctx.db.patch(setting._id, { value: args.newPassword });

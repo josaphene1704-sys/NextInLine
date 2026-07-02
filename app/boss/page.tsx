@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import {
   Sparkles, Copy, CheckCheck, Plus, Loader2,
@@ -130,8 +131,13 @@ function BossDashboard({ session, onLogout }: { session: BossSession; onLogout: 
       setSlug("");
       setNameHe("");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message.replace(/^Uncaught Error: /, "") : "שגיאה";
-      setError(msg);
+      // ConvexError.data survives production redaction; plain Errors don't.
+      const msg = err instanceof ConvexError
+        ? String(err.data)
+        : err instanceof Error
+          ? err.message.replace(/^Uncaught Error:\s*/, "")
+          : "שגיאה";
+      setError(msg.includes("Server Error") ? "אירעה שגיאה, נסי שנית" : msg);
     } finally {
       setLoading(false);
     }

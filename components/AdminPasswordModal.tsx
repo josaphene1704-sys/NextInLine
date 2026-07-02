@@ -3,6 +3,7 @@
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
@@ -21,6 +22,17 @@ interface AdminPasswordModalProps {
 }
 
 type Phase = "login" | "force-change";
+
+/**
+ * Pull a human-readable message out of a Convex error. In production Convex
+ * redacts plain `Error` messages, but `ConvexError.data` is preserved — so the
+ * server throws ConvexError and we read `.data` here.
+ */
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof ConvexError) return String(err.data);
+  if (err instanceof Error) return err.message.replace(/^Uncaught Error:\s*/, "");
+  return "";
+}
 
 export function AdminPasswordModal({
   open,
@@ -66,14 +78,15 @@ export function AdminPasswordModal({
         router.push(adminSuccessPath);
       }
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : "אירעה שגיאה, נסי שנית";
-      const msg = raw.replace(/^Uncaught Error: /, "");
-      if (msg.includes("Account suspended")) {
+      // ConvexError.data survives production redaction (plain Errors don't),
+      // so prefer it — it carries the real Hebrew message from the server.
+      const msg = extractErrorMessage(err);
+      if (msg.includes("Account suspended") || msg.includes("מושה")) {
         setError("החשבון מושהה. פני לתמיכה.");
       } else if (msg.includes("סיסמה שגויה")) {
         setError("סיסמה שגויה, נסי שנית");
       } else {
-        setError("אירעה שגיאה, נסי שנית");
+        setError(msg || "אירעה שגיאה, נסי שנית");
       }
     } finally {
       setLoading(false);
@@ -97,8 +110,7 @@ export function AdminPasswordModal({
       handleClose();
       router.push(adminSuccessPath);
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : "אירעה שגיאה, נסי שנית";
-      setError(raw.replace(/^Uncaught Error: /, ""));
+      setError(extractErrorMessage(err) || "אירעה שגיאה, נסי שנית");
     } finally {
       setLoading(false);
     }

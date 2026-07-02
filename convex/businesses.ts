@@ -1,5 +1,5 @@
 import { internalMutation, mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requireBossSession, requireBusinessSession } from "./authHelpers";
 import { getSoleBarber } from "./barberHelpers";
@@ -249,7 +249,7 @@ export const provision = mutation({
       .query("businesses")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .unique();
-    if (existing) throw new Error(`הסלאג "${slug}" כבר קיים במערכת`);
+    if (existing) throw new ConvexError(`הסלאג "${slug}" כבר קיים במערכת`);
 
     // Find the template BEFORE inserting the new business.
     const tagged = await ctx.db

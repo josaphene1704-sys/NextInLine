@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck, Eye, EyeOff, Check, Loader2, Power, PowerOff } from "lucide-react";
 import { useAdminSession } from "@/contexts/AdminSessionContext";
+
+/** ConvexError.data survives production redaction; plain Error messages don't. */
+function errMsg(err: unknown, fallback: string): string {
+  if (err instanceof ConvexError) return String(err.data);
+  if (err instanceof Error) {
+    const m = err.message.replace(/^Uncaught Error:\s*/, "");
+    // A redacted server error is not useful to show verbatim.
+    if (!m || m.includes("Server Error")) return fallback;
+    return m;
+  }
+  return fallback;
+}
 
 // ─── Password change card ──────────────────────────────────────────────────────
 
@@ -39,8 +52,7 @@ function PasswordCard({ businessId }: { businessId?: Id<"businesses"> }) {
       setCurrentPassword("");
       setNewPassword("");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "אירעה שגיאה, נסי שנית";
-      setError(msg.replace(/^Uncaught Error: /, ""));
+      setError(errMsg(err, "אירעה שגיאה, נסי שנית"));
     } finally {
       setLoading(false);
     }
@@ -164,8 +176,7 @@ function ShopStatusCard({ businessId }: { businessId?: Id<"businesses"> }) {
     try {
       await setIsActive({ businessId: business._id, isActive: !isActive, token: session?.token ?? "" });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "אירעה שגיאה";
-      setError(msg.replace(/^Uncaught Error: /, ""));
+      setError(errMsg(err, "אירעה שגיאה"));
     } finally {
       setLoading(false);
     }

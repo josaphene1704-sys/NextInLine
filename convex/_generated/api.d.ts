@@ -17,6 +17,7 @@ import type * as businesses from "../businesses.js";
 import type * as files from "../files.js";
 import type * as gallery from "../gallery.js";
 import type * as helpers from "../helpers.js";
+import type * as migrations from "../migrations.js";
 import type * as seed from "../seed.js";
 import type * as services from "../services.js";
 import type * as settings from "../settings.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   files: typeof files;
   gallery: typeof gallery;
   helpers: typeof helpers;
+  migrations: typeof migrations;
   seed: typeof seed;
   services: typeof services;
   settings: typeof settings;
