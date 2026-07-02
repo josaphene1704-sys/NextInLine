@@ -8,7 +8,7 @@ import { useLang } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { X, UserCircle2, Loader2, MessageCircle, ChevronRight } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,7 +67,13 @@ export default function AuthWidget() {
   const { user, login, logout } = useAuth();
   const { t, lang } = useLang();
   const router = useRouter();
+  const params = useParams();
   const sendOtp = useAction(api.auth.sendOtp);
+
+  // On a salon page, keep the profile scoped to that salon (and keep the URL
+  // under /salon/<slug>); elsewhere use the global profile.
+  const slug = typeof params?.slug === "string" ? params.slug : null;
+  const profileHref = slug ? `/salon/${slug}/profile` : "/profile";
 
   const [open, setOpen]       = useState(false);
   const [mode, setMode]       = useState<Mode>("login");
@@ -267,7 +273,7 @@ export default function AuthWidget() {
       {user ? (
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => router.push("/profile")}
+            onClick={() => router.push(profileHref)}
             className="text-xs bg-primary/10 text-primary rounded-full px-3 py-1.5 font-semibold hover:bg-primary/20 transition-colors flex items-center gap-1"
           >
             <UserCircle2 className="w-3.5 h-3.5" />
