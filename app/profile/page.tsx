@@ -75,9 +75,6 @@ function WaitingListCard({ entry }: { entry: any }) {
               {entry.service?.name?.he ?? "כל שירות"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">{dateDisplay}</p>
-            {entry.barber && (
-              <p className="text-xs text-muted-foreground">מעצבת: {entry.barber.name?.he}</p>
-            )}
             <p className="text-xs text-muted-foreground mt-0.5">
               עדיפות שעה: {timePrefLabel[entry.timePreference]}
             </p>
@@ -183,9 +180,6 @@ function AppointmentCard({ appt, timezone }: { appt: any; timezone: string }) {
             <div className="min-w-0">
               <p className="font-semibold text-sm truncate">{appt.service?.name?.he ?? "שירות"}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{dateDisplay} · {start}–{end}</p>
-              {appt.barber && (
-                <p className="text-xs text-muted-foreground">מעצבת: {appt.barber.name?.he}</p>
-              )}
             </div>
             <span className={`shrink-0 text-[11px] font-semibold rounded-full px-2.5 py-1 ${STATUS_COLOR[appt.status]}`}>
               {STATUS_LABEL[appt.status]}

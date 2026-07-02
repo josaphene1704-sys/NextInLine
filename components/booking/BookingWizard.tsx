@@ -238,7 +238,6 @@ export default function BookingWizard({ businessId }: { businessId: Id<"business
       {step === 5 && state.service && state.barber && state.date && state.slot && (
         <DepositPayment
           service={state.service}
-          barber={state.barber}
           date={state.date}
           slot={state.slot}
           customerName={state.customerName}
@@ -257,7 +256,6 @@ export default function BookingWizard({ businessId }: { businessId: Id<"business
       {step === 6 && state.slot && (
         <Confirmation
           service={state.service}
-          barber={state.barber}
           date={state.date!}
           slot={state.slot}
           customerName={state.customerName}

@@ -14,7 +14,6 @@ interface TimeSlot {
 
 interface Props {
   service: Doc<"services"> | null;
-  barber: Doc<"barbers"> | null;
   date: string;
   slot: TimeSlot;
   customerName: string;
@@ -27,14 +26,13 @@ const labels = {
   detail:     { he: "פרטי הבקשה",       ar: "تفاصيل الطلب" },
   pending:    { he: "ממתין לאישור",     ar: "في انتظار التأكيد" },
   service:    { he: "שירות",            ar: "الخدمة" },
-  stylist:    { he: "מעצבת",            ar: "المصففة" },
   date:       { he: "תאריך",            ar: "التاريخ" },
   time:       { he: "שעה",              ar: "الوقت" },
   price:      { he: "מחיר",             ar: "السعر" },
   newBooking: { he: "הזמני תור נוסף",  ar: "احجزي موعداً آخر" },
 };
 
-export default function Confirmation({ service, barber, date, slot, customerName, hairDetails, onReset }: Props) {
+export default function Confirmation({ service, date, slot, customerName, hairDetails, onReset }: Props) {
   const { lang, t } = useLang();
   const finalPrice = service ? calcFinalPrice(service, hairDetails.hairLength) : undefined;
 
@@ -92,12 +90,6 @@ export default function Confirmation({ service, barber, date, slot, customerName
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">{t(labels.service)}</span>
               <span className="font-medium text-end">{t(service.name)}</span>
-            </div>
-          )}
-          {barber && (
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">{t(labels.stylist)}</span>
-              <span className="font-medium text-end">{t(barber.name)}</span>
             </div>
           )}
           <div className="flex justify-between gap-4">

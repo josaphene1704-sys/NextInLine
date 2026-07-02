@@ -39,7 +39,6 @@ const labels = {
   subtitle: { he: "כמעט סיימנו! מלאי את הפרטים שלך", ar: "تقريباً انتهينا! أدخلي بياناتك" },
   summary: { he: "סיכום ההזמנה", ar: "ملخص الحجز" },
   service: { he: "שירות", ar: "الخدمة" },
-  stylist: { he: "מעצבת", ar: "المصففة" },
   date: { he: "תאריך", ar: "التاريخ" },
   time: { he: "שעה", ar: "الوقت" },
   price: { he: "מחיר", ar: "السعر" },
@@ -134,10 +133,6 @@ export default function ContactForm({
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">{t(labels.service)}</span>
               <span className="font-medium text-end">{t(service.name)}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">{t(labels.stylist)}</span>
-              <span className="font-medium text-end">{t(barber.name)}</span>
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">{t(labels.date)}</span>

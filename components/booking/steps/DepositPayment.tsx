@@ -15,7 +15,6 @@ interface TimeSlot {
 
 interface Props {
   service: Doc<"services">;
-  barber: Doc<"barbers">;
   date: string;
   slot: TimeSlot;
   customerName: string;
@@ -27,7 +26,7 @@ interface Props {
 }
 
 export default function DepositPayment({
-  service, barber, date, slot,
+  service, date, slot,
   customerName, customerPhone, notes, hairDetails,
   onSuccess, onBack,
 }: Props) {
@@ -78,10 +77,6 @@ export default function DepositPayment({
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">{lang === "ar" ? "الخدمة" : "שירות"}</span>
             <span className="font-medium text-end">{t(service.name)}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">{lang === "ar" ? "المصففة" : "מעצבת"}</span>
-            <span className="font-medium text-end">{t(barber.name)}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">{lang === "ar" ? "التاريخ" : "תאריך"}</span>

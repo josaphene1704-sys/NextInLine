@@ -7,7 +7,7 @@ import { useLang } from "@/contexts/LanguageContext";
 import { formatSlotTime } from "@/lib/utils";
 import {
   CalendarClock, Hourglass, Trash2, Loader2,
-  Pencil, Clock, CheckCircle2, User,
+  Pencil, Clock, CheckCircle2,
 } from "lucide-react";
 import { RescheduleModal } from "@/components/booking/RescheduleModal";
 import { Id } from "@/convex/_generated/dataModel";
@@ -73,10 +73,6 @@ function ApptRow({ appt, timezone, lang }: { appt: any; timezone: string; lang: 
     ? (appt.service?.name?.ar ?? appt.service?.name?.he ?? "")
     : (appt.service?.name?.he ?? "");
 
-  const barberName = lang === "ar"
-    ? (appt.barber?.name?.ar ?? appt.barber?.name?.he ?? "")
-    : (appt.barber?.name?.he ?? "");
-
   return (
     <>
       <li className="rounded-xl border border-border/40 bg-card/70 p-3 space-y-2 shadow-sm">
@@ -87,12 +83,6 @@ function ApptRow({ appt, timezone, lang }: { appt: any; timezone: string; lang: 
               <span className="text-xs text-primary font-medium">{formatSlotTime(appt.startTime, timezone, lang)}</span>
             </div>
             {serviceName && <p className="text-xs text-muted-foreground truncate">{serviceName}</p>}
-            {barberName && (
-              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                <User className="w-3 h-3 shrink-0" />
-                {barberName}
-              </div>
-            )}
           </div>
           <StatusBadge status={appt.status} lang={lang} />
         </div>
@@ -171,22 +161,12 @@ function WaitingRow({ entry, customerPhone, lang }: { entry: any; customerPhone:
     ? (entry.service?.name?.ar ?? entry.service?.name?.he ?? "")
     : (entry.service?.name?.he ?? "");
 
-  const barberName = lang === "ar"
-    ? (entry.barber?.name?.ar ?? entry.barber?.name?.he ?? "")
-    : (entry.barber?.name?.he ?? "");
-
   return (
     <li className="rounded-xl border-2 border-amber-400/50 bg-amber-50/70 dark:bg-amber-900/20 p-3 space-y-2 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-0.5 min-w-0">
           <span className="text-sm font-semibold text-foreground">{fmtDateStr(entry.date, lang)}</span>
           {serviceName && <p className="text-xs text-muted-foreground truncate">{serviceName}</p>}
-          {barberName && (
-            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <User className="w-3 h-3 shrink-0" />
-              {barberName}
-            </div>
-          )}
         </div>
         {/* Waiting list badge — always visible, prominent */}
         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-amber-200 text-amber-800 dark:bg-amber-800/60 dark:text-amber-200 shrink-0">
