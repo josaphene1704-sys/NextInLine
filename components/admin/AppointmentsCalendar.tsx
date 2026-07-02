@@ -10,6 +10,7 @@ import { getColorByCode } from "@/lib/colors";
 import { needsHairDetailsStep } from "@/lib/hair-details";
 import { CustomerProfileDrawer } from "@/components/admin/CustomerProfileDrawer";
 import { RescheduleModal } from "@/components/booking/RescheduleModal";
+import { useAdminSession } from "@/contexts/AdminSessionContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, CalendarClock, ClipboardList, Trash2, ChevronDown, Bell, MessageCircle } from "lucide-react";
@@ -366,19 +367,21 @@ export function AppointmentsCalendar({
   businessName?: string;
   salonLink?: string;
 }) {
-  const barbers = useQuery(api.barbers.getAllByBusiness, { businessId });
-  const [selectedBarber, setSelectedBarber] = useState<string>("");
-
   const fromMs = new Date().setUTCHours(0, 0, 0, 0);
 
   const appointments = useQuery(api.appointments.getUpcoming, {
     businessId,
     fromMs,
-    barberId: selectedBarber ? (selectedBarber as Id<"barbers">) : undefined,
   });
 
-  const updateStatus  = useMutation(api.appointments.updateAppointmentStatus);
-  const removeWaiting = useMutation(api.waitingList.removeEntry);
+  const { session } = useAdminSession();
+  const updateStatusRaw = useMutation(api.appointments.updateAppointmentStatus);
+  const removeWaitingRaw = useMutation(api.waitingList.removeEntry);
+
+  const updateStatus = (args: { appointmentId: Id<"appointments">; status: "pending" | "confirmed" | "cancelled" }) =>
+    updateStatusRaw({ ...args, token: session?.token });
+  const removeWaiting = (args: { entryId: Id<"waitingList"> }) =>
+    removeWaitingRaw({ ...args, token: session?.token ?? "" });
 
   const waitingListAll = useQuery(api.waitingList.getForBusiness, { businessId });
 
@@ -393,7 +396,7 @@ export function AppointmentsCalendar({
     });
   }
 
-  if (!barbers || !appointments) {
+  if (!appointments) {
     return <div className="text-muted-foreground text-sm">טוען תורים...</div>;
   }
 
@@ -418,36 +421,6 @@ export function AppointmentsCalendar({
 
   return (
     <div className="space-y-4">
-      {/* Barber filter */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground shrink-0">ספרית:</span>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setSelectedBarber("")}
-            className={`px-3 h-8 rounded-full border text-xs font-medium transition-colors ${
-              selectedBarber === ""
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border text-muted-foreground hover:border-primary"
-            }`}
-          >
-            כולן
-          </button>
-          {barbers.map((b) => (
-            <button
-              key={b._id}
-              onClick={() => setSelectedBarber(b._id === selectedBarber ? "" : b._id)}
-              className={`px-3 h-8 rounded-full border text-xs font-medium transition-colors ${
-                selectedBarber === b._id
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "border-border text-muted-foreground hover:border-primary"
-              }`}
-            >
-              {b.name.he}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {dates.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-12">
           אין תורים קרובים

@@ -5,37 +5,31 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
+import { AdminSessionProvider, useAdminSession } from "@/contexts/AdminSessionContext";
+import { Doc } from "@/convex/_generated/dataModel";
 import { BusinessSettings } from "@/components/admin/BusinessSettings";
 import { ServicesManager } from "@/components/admin/ServicesManager";
-import { BarbersManager } from "@/components/admin/BarbersManager";
 import { SpecialSchedulesManager } from "@/components/admin/SpecialSchedulesManager";
 import { AppointmentsCalendar } from "@/components/admin/AppointmentsCalendar";
 import { PasswordSettings } from "@/components/admin/PasswordSettings";
 import { GalleryManager } from "@/components/admin/GalleryManager";
+import { SubscriptionManager } from "@/components/admin/SubscriptionManager";
 
 const TABS = [
   { id: "business",  label: "פרטי העסק" },
   { id: "services",  label: "שירותים" },
-  { id: "barbers",   label: "ספרים" },
   { id: "schedule",  label: "ימים מיוחדים" },
   { id: "calendar",  label: "תורים" },
   { id: "gallery",   label: "גלרייה" },
+  { id: "billing",   label: "מנוי וחיוב" },
   { id: "settings",  label: "הגדרות" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
 export default function AdminPage() {
-  const [tab, setTab] = useState<TabId>("business");
-  const router = useRouter();
   const businesses = useQuery(api.businesses.getAll);
   const business = businesses?.[0];
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("adminAuthenticated")) {
-      router.replace("/");
-    }
-  }, [router]);
 
   if (businesses === undefined) {
     return (
@@ -49,6 +43,32 @@ export default function AdminPage() {
     return (
       <div className="flex items-center justify-center min-h-screen text-destructive">
         לא נמצא עסק במערכת
+      </div>
+    );
+  }
+
+  return (
+    <AdminSessionProvider slug={business._id}>
+      <AdminDashboard business={business} />
+    </AdminSessionProvider>
+  );
+}
+
+function AdminDashboard({ business }: { business: Doc<"businesses"> }) {
+  const [tab, setTab] = useState<TabId>("business");
+  const router = useRouter();
+  const { session } = useAdminSession();
+
+  useEffect(() => {
+    if (!session || session.businessId !== business._id) {
+      router.replace("/");
+    }
+  }, [session, business._id, router]);
+
+  if (!session || session.businessId !== business._id) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-muted-foreground">
+        טוען...
       </div>
     );
   }
@@ -88,10 +108,10 @@ export default function AdminPage() {
 
         {tab === "business"  && <BusinessSettings business={business} />}
         {tab === "services"  && <ServicesManager  businessId={business._id} />}
-        {tab === "barbers"   && <BarbersManager   businessId={business._id} />}
         {tab === "schedule"  && <SpecialSchedulesManager businessId={business._id} />}
         {tab === "gallery"   && <GalleryManager   businessId={business._id} />}
-        {tab === "settings"  && <PasswordSettings />}
+        {tab === "billing"   && <SubscriptionManager businessId={business._id} />}
+        {tab === "settings"  && <PasswordSettings businessId={business._id} />}
         {tab === "calendar"  && (
           <div className="space-y-4">
             <div className="flex justify-end">

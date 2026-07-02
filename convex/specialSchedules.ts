@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireBusinessSession } from "./authHelpers";
 
 /** All special-schedule overrides for a business (includes all barbers). */
 export const getByBusiness = query({
@@ -13,20 +14,22 @@ export const getByBusiness = query({
 });
 
 /**
- * Create or update the override for a (business/barber, date) pair.
- * A second call for the same date + barberId replaces the previous entry.
+ * Create or update the override for a (business, date) pair.
+ * A second call for the same date replaces the previous entry.
  */
 export const upsert = mutation({
   args: {
+    token: v.string(),
     businessId: v.id("businesses"),
-    barberId: v.optional(v.id("barbers")),
     date: v.string(),
     isClosed: v.boolean(),
     customStart: v.optional(v.string()),
     customEnd: v.optional(v.string()),
     note: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { token, ...args }) => {
+    await requireBusinessSession(ctx, token, args.businessId);
+
     const candidates = await ctx.db
       .query("specialSchedules")
       .withIndex("by_business_date", (q) =>
@@ -34,16 +37,13 @@ export const upsert = mutation({
       )
       .collect();
 
-    const existing = candidates.find((c) =>
-      args.barberId ? c.barberId === args.barberId : !c.barberId
-    );
+    const existing = candidates[0];
 
     const patch = {
       isClosed: args.isClosed,
       customStart: args.customStart,
       customEnd: args.customEnd,
       note: args.note,
-      barberId: args.barberId,
     };
 
     if (existing) {
@@ -59,8 +59,11 @@ export const upsert = mutation({
 });
 
 export const remove = mutation({
-  args: { id: v.id("specialSchedules") },
-  handler: async (ctx, { id }) => {
+  args: { token: v.string(), id: v.id("specialSchedules") },
+  handler: async (ctx, { token, id }) => {
+    const existing = await ctx.db.get(id);
+    if (!existing) throw new Error("Not found");
+    await requireBusinessSession(ctx, token, existing.businessId);
     await ctx.db.delete(id);
   },
 });

@@ -100,7 +100,7 @@ export default function ContactForm({
     setSubmitting(true);
     try {
       const id = await createAppointment({
-        barberId: barber._id,
+        businessId: barber.businessId,
         serviceId: service._id,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),

@@ -8,14 +8,17 @@ import {
   dayBoundsFromDateStr,
   isValidPhone,
 } from "./helpers";
+import { requireBusinessSession } from "./authHelpers";
+import { getSoleBarber, getSoleBarberReadonly } from "./barberHelpers";
 
 // ─── getAvailableSlots ────────────────────────────────────────────────────────
 
 /**
- * Returns all bookable time slots for a (barber, service, date) triple.
+ * Returns all bookable time slots for a (business, service, date) triple.
+ * The business's sole barber is resolved server-side.
  *
  * Steps:
- *  1. Resolve barber → business → working hours (barber-level overrides business-level).
+ *  1. Resolve business's sole barber → working hours (barber-level overrides business-level).
  *  2. Resolve service duration.
  *  3. Validate the requested date is a working day.
  *  4. Validate the service belongs to the same business as the barber.
@@ -26,19 +29,20 @@ import {
  */
 export const getAvailableSlots = query({
   args: {
-    barberId: v.id("barbers"),
+    businessId: v.id("businesses"),
     serviceId: v.id("services"),
     date: v.string(),
   },
-  handler: async (ctx, { barberId, serviceId, date }) => {
-    // 1. Resolve barber and business.
-    const barber = await ctx.db.get(barberId);
-    if (!barber || !barber.isActive) {
-      throw new Error("Barber not found or inactive");
-    }
-
-    const business = await ctx.db.get(barber.businessId);
+  handler: async (ctx, { businessId, serviceId, date }) => {
+    // 1. Resolve business and its sole barber.
+    const business = await ctx.db.get(businessId);
     if (!business) throw new Error("Business not found");
+
+    const barber = await getSoleBarberReadonly(ctx, businessId);
+    if (!barber.isActive) {
+      throw new Error("No active barber configured for this business");
+    }
+    const barberId = barber._id;
 
     // 2. Resolve service.
     const service = await ctx.db.get(serviceId);
@@ -166,7 +170,7 @@ const hairDetailsValidator = v.optional(v.object({
 
 export const createAppointment = mutation({
   args: {
-    barberId: v.id("barbers"),
+    businessId: v.id("businesses"),
     serviceId: v.id("services"),
     customerName: v.string(),
     customerPhone: v.string(),
@@ -176,7 +180,7 @@ export const createAppointment = mutation({
     hairDetails: hairDetailsValidator,
   },
   handler: async (ctx, args) => {
-    const { barberId, serviceId, customerName, customerPhone, startTime, finalPrice, notes, hairDetails } =
+    const { businessId, serviceId, customerName, customerPhone, startTime, finalPrice, notes, hairDetails } =
       args;
 
     // ── Input validation ──────────────────────────────────────────────────
@@ -190,8 +194,9 @@ export const createAppointment = mutation({
     }
 
     // ── Resolve entities ──────────────────────────────────────────────────
-    const barber = await ctx.db.get(barberId);
-    if (!barber || !barber.isActive) throw new Error("Barber not found or inactive");
+    const barber = await getSoleBarber(ctx, businessId);
+    if (!barber.isActive) throw new Error("No active barber configured for this business");
+    const barberId = barber._id;
 
     const service = await ctx.db.get(serviceId);
     if (!service || !service.isActive) throw new Error("Service not found or inactive");
@@ -320,10 +325,24 @@ export const updateAppointmentStatus = mutation({
       v.literal("confirmed"),
       v.literal("cancelled")
     ),
+    // Optional: present for admin callers (AppointmentsCalendar), absent for
+    // the anonymous customer self-cancel flow (UpcomingAppointmentsBanner).
+    token: v.optional(v.string()),
   },
-  handler: async (ctx, { appointmentId, status }) => {
+  handler: async (ctx, { appointmentId, status, token }) => {
     const appointment = await ctx.db.get(appointmentId);
     if (!appointment) throw new Error("Appointment not found");
+
+    // Authorization: "confirmed" is an admin-only transition. "cancelled" is
+    // allowed for both an authenticated admin of this business AND an
+    // anonymous customer cancelling their own appointment (no login system
+    // exists for customers) — but if a token IS supplied on a cancel, it must
+    // be valid for this business rather than silently ignored.
+    if (status === "confirmed") {
+      await requireBusinessSession(ctx, token, appointment.businessId);
+    } else if (status === "cancelled" && token) {
+      await requireBusinessSession(ctx, token, appointment.businessId);
+    }
 
     if (
       status === "cancelled" &&
@@ -363,9 +382,8 @@ export const getRange = query({
     businessId: v.id("businesses"),
     fromMs: v.number(),
     toMs: v.number(),
-    barberId: v.optional(v.id("barbers")),
   },
-  handler: async (ctx, { businessId, fromMs, toMs, barberId }) => {
+  handler: async (ctx, { businessId, fromMs, toMs }) => {
     const rows = await ctx.db
       .query("appointments")
       .withIndex("by_business_time", (q) =>
@@ -374,10 +392,8 @@ export const getRange = query({
       .order("asc")
       .take(500);
 
-    const filtered = barberId ? rows.filter((a) => a.barberId === barberId) : rows;
-
     return await Promise.all(
-      filtered.map(async (appt) => {
+      rows.map(async (appt) => {
         const [barber, service] = await Promise.all([
           ctx.db.get(appt.barberId),
           ctx.db.get(appt.serviceId),
@@ -413,15 +429,14 @@ export const getRange = query({
 
 /**
  * Upcoming appointments for admin calendar view, enriched with barber/service.
- * Ordered by startTime asc. Optionally filtered to a specific barber.
+ * Ordered by startTime asc.
  */
 export const getUpcoming = query({
   args: {
     businessId: v.id("businesses"),
     fromMs: v.number(),
-    barberId: v.optional(v.id("barbers")),
   },
-  handler: async (ctx, { businessId, fromMs, barberId }) => {
+  handler: async (ctx, { businessId, fromMs }) => {
     const rows = await ctx.db
       .query("appointments")
       .withIndex("by_business_time", (q) =>
@@ -430,10 +445,8 @@ export const getUpcoming = query({
       .order("asc")
       .take(300);
 
-    const filtered = barberId ? rows.filter((a) => a.barberId === barberId) : rows;
-
     return await Promise.all(
-      filtered.map(async (appt) => {
+      rows.map(async (appt) => {
         const [barber, service] = await Promise.all([
           ctx.db.get(appt.barberId),
           ctx.db.get(appt.serviceId),
@@ -525,6 +538,11 @@ export const getCustomerProfile = query({
 });
 
 // ─── rescheduleAppointment ────────────────────────────────────────────────────
+// Customer self-service only today (no admin UI calls this) — intentionally
+// left unauthenticated to match the existing anonymous reschedule flow. If an
+// admin "reschedule" action is ever added, apply the same optional-token
+// pattern used in updateAppointmentStatus above rather than forcing every
+// caller through a session.
 
 export const rescheduleAppointment = mutation({
   args: {

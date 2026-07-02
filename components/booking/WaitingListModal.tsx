@@ -13,7 +13,6 @@ type TimePreference = "morning" | "evening" | "any";
 
 interface Props {
   businessId:  Id<"businesses">;
-  barberId?:   Id<"barbers">;
   serviceId?:  Id<"services">;
   date:        string; // "YYYY-MM-DD"
   onClose:     () => void;
@@ -42,7 +41,7 @@ const labels = {
   errorRequired:    { he: "יש למלא שם וטלפון",          ar: "الرجاء ملء الاسم والهاتف" },
 };
 
-export function WaitingListModal({ businessId, barberId, serviceId, date, onClose, onSuccess }: Props) {
+export function WaitingListModal({ businessId, serviceId, date, onClose, onSuccess }: Props) {
   const { lang, t } = useLang();
   const { user } = useAuth();
   const join = useMutation(api.waitingList.joinWaitingList);
@@ -74,7 +73,6 @@ export function WaitingListModal({ businessId, barberId, serviceId, date, onClos
     try {
       await join({
         businessId,
-        barberId,
         serviceId,
         date,
         timePreference: timePref,

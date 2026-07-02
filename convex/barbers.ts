@@ -1,7 +1,15 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireBusinessSession } from "./authHelpers";
+import { getSoleBarberReadonly } from "./barberHelpers";
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
+
+/** The single barber for a business — used by the booking flow instead of a picker. */
+export const getSoleBarber = query({
+  args: { businessId: v.id("businesses") },
+  handler: async (ctx, { businessId }) => getSoleBarberReadonly(ctx, businessId),
+});
 
 /** All active barbers/stylists for a given business. */
 export const getByBusiness = query({
@@ -48,6 +56,7 @@ const workingHoursArg = v.optional(
 
 export const create = mutation({
   args: {
+    token: v.string(),
     businessId: v.id("businesses"),
     name: v.object({ he: v.string(), ar: v.string() }),
     role: v.object({ he: v.string(), ar: v.string() }),
@@ -55,7 +64,9 @@ export const create = mutation({
     specializedServices: v.array(v.string()),
     workingHours: workingHoursArg,
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { token, ...args }) => {
+    await requireBusinessSession(ctx, token, args.businessId);
+
     const business = await ctx.db.get(args.businessId);
     if (!business) throw new Error("Business not found");
 
@@ -65,6 +76,7 @@ export const create = mutation({
 
 export const update = mutation({
   args: {
+    token: v.string(),
     barberId: v.id("barbers"),
     name: v.optional(v.object({ he: v.string(), ar: v.string() })),
     role: v.optional(v.object({ he: v.string(), ar: v.string() })),
@@ -73,9 +85,10 @@ export const update = mutation({
     workingHours: workingHoursArg,
     isActive: v.optional(v.boolean()),
   },
-  handler: async (ctx, { barberId, ...fields }) => {
+  handler: async (ctx, { token, barberId, ...fields }) => {
     const existing = await ctx.db.get(barberId);
     if (!existing) throw new Error("Barber not found");
+    await requireBusinessSession(ctx, token, existing.businessId);
 
     const patch = Object.fromEntries(
       Object.entries(fields).filter(([, v]) => v !== undefined)

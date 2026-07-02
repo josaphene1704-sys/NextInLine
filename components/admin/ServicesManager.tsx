@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, X, Scissors, Sparkles } from "lucide-react";
+import { useAdminSession } from "@/contexts/AdminSessionContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,9 +81,14 @@ function priceRangeLabel(s: Doc<"services">): string {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ServicesManager({ businessId }: { businessId: Id<"businesses"> }) {
+  const { session } = useAdminSession();
   const services = useQuery(api.services.getAllByBusiness, { businessId });
-  const create   = useMutation(api.services.create);
-  const update   = useMutation(api.services.update);
+  const createRaw = useMutation(api.services.create);
+  const updateRaw = useMutation(api.services.update);
+  const create = (args: Omit<Parameters<typeof createRaw>[0], "token">) =>
+    createRaw({ ...args, token: session?.token ?? "" });
+  const update = (args: Omit<Parameters<typeof updateRaw>[0], "token">) =>
+    updateRaw({ ...args, token: session?.token ?? "" });
 
   const [editing, setEditing] = useState<Id<"services"> | "new" | null>(null);
   const [form, setForm]       = useState<ServiceForm>(EMPTY);

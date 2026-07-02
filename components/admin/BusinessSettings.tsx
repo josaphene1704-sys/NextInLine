@@ -12,9 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { WorkingHoursEditor, DayScheduleItem, legacyToSchedules } from "@/components/admin/WorkingHoursEditor";
+import { useAdminSession } from "@/contexts/AdminSessionContext";
 
 export function BusinessSettings({ business }: { business: Doc<"businesses"> }) {
   const updateBusiness = useMutation(api.businesses.update);
+  const { session } = useAdminSession();
 
   const [nameHe, setNameHe] = useState(business.name.he);
   const [nameAr, setNameAr] = useState(business.name.ar);
@@ -36,6 +38,7 @@ export function BusinessSettings({ business }: { business: Doc<"businesses"> }) 
     try {
       await updateBusiness({
         businessId: business._id,
+        token: session?.token ?? "",
         name: { he: nameHe, ar: nameAr },
         description: { he: descHe, ar: descAr },
         address,

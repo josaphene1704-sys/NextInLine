@@ -28,13 +28,13 @@ function buildCells(year: number, month: number): (Date | null)[] {
 // ─── Slot + calendar picker ───────────────────────────────────────────────────
 
 function ReschedulePicker({
-  barberId,
+  businessId,
   serviceId,
   timezone,
   onConfirm,
   loading,
 }: {
-  barberId: Id<"barbers">;
+  businessId: Id<"businesses">;
   serviceId: Id<"services">;
   timezone: string;
   onConfirm: (slot: TimeSlot) => void;
@@ -53,7 +53,7 @@ function ReschedulePicker({
 
   const slotsResult = useQuery(
     api.appointments.getAvailableSlots,
-    selectedDate ? { barberId, serviceId, date: selectedDate } : "skip"
+    selectedDate ? { businessId, serviceId, date: selectedDate } : "skip"
   );
 
   const cells = buildCells(calMonth.getFullYear(), calMonth.getMonth());
@@ -182,9 +182,8 @@ function ReschedulePicker({
 export interface RescheduleAppt {
   _id: Id<"appointments">;
   startTime: number;
-  barberId: Id<"barbers">;
+  businessId: Id<"businesses">;
   serviceId: Id<"services">;
-  barber?: { _id: Id<"barbers"> } | null;
   service?: { _id: Id<"services">; name: { he: string; ar?: string } } | null;
   business?: { timezone?: string } | null;
 }
@@ -205,7 +204,6 @@ export function RescheduleModal({
   const [loading, setLoading]   = useState(false);
   const [error,   setError]     = useState<string | null>(null);
 
-  const barberId  = (appt.barber?._id  ?? appt.barberId)  as Id<"barbers">;
   const serviceId = (appt.service?._id ?? appt.serviceId) as Id<"services">;
 
   async function handleConfirm(slot: TimeSlot) {
@@ -260,7 +258,7 @@ export function RescheduleModal({
           )}
 
           <ReschedulePicker
-            barberId={barberId}
+            businessId={appt.businessId}
             serviceId={serviceId}
             timezone={timezone}
             onConfirm={handleConfirm}

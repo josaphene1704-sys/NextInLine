@@ -6,15 +6,21 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { ImagePlus, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAdminSession } from "@/contexts/AdminSessionContext";
 
 const ALL_KEY = "__all__";
 
 export function GalleryManager({ businessId }: { businessId: Id<"businesses"> }) {
+  const { session } = useAdminSession();
   const services = useQuery(api.services.getAllByBusiness, { businessId });
   const galleryItems = useQuery(api.gallery.getByBusiness, { businessId });
-  const addPhoto = useMutation(api.gallery.add);
-  const removePhoto = useMutation(api.gallery.remove);
+  const addPhotoRaw = useMutation(api.gallery.add);
+  const removePhotoRaw = useMutation(api.gallery.remove);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const addPhoto = (args: Omit<Parameters<typeof addPhotoRaw>[0], "token">) =>
+    addPhotoRaw({ ...args, token: session?.token ?? "" });
+  const removePhoto = (args: Omit<Parameters<typeof removePhotoRaw>[0], "token">) =>
+    removePhotoRaw({ ...args, token: session?.token ?? "" });
 
   const [activeServiceId, setActiveServiceId] = useState<string>(ALL_KEY);
   const [uploading, setUploading] = useState(false);

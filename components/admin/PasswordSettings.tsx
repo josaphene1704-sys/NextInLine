@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck, Eye, EyeOff, Check, Loader2, Power, PowerOff } from "lucide-react";
+import { useAdminSession } from "@/contexts/AdminSessionContext";
 
 // ─── Password change card ──────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ function PasswordCard({ businessId }: { businessId?: Id<"businesses"> }) {
   const [loading, setLoading] = useState(false);
 
   const updatePassword = useMutation(api.settings.updateAdminPassword);
+  const { setSession } = useAdminSession();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +32,9 @@ function PasswordCard({ businessId }: { businessId?: Id<"businesses"> }) {
     setError(null);
     setSuccess(false);
     try {
-      await updatePassword({ currentPassword, newPassword, businessId });
+      const { token } = await updatePassword({ currentPassword, newPassword, businessId });
+      // Rotate the local session too — the server invalidated the old token.
+      if (token && businessId) setSession({ businessId, token });
       setSuccess(true);
       setCurrentPassword("");
       setNewPassword("");
@@ -147,6 +151,7 @@ function ShopStatusCard({ businessId }: { businessId?: Id<"businesses"> }) {
     ? businesses?.find((b) => b._id === businessId)
     : businesses?.[0];
   const setIsActive = useMutation(api.businesses.setIsActive);
+  const { session } = useAdminSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -157,7 +162,7 @@ function ShopStatusCard({ businessId }: { businessId?: Id<"businesses"> }) {
     setLoading(true);
     setError(null);
     try {
-      await setIsActive({ businessId: business._id, isActive: !isActive });
+      await setIsActive({ businessId: business._id, isActive: !isActive, token: session?.token ?? "" });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "אירעה שגיאה";
       setError(msg.replace(/^Uncaught Error: /, ""));

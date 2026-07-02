@@ -11,12 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2 } from "lucide-react";
+import { useAdminSession } from "@/contexts/AdminSessionContext";
 
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 type FormState = {
   date: string;
-  barberId: string; // "" = all
   isClosed: boolean;
   customStart: string;
   customEnd: string;
@@ -27,7 +27,6 @@ const todayStr = toDateStr(new Date());
 
 const EMPTY: FormState = {
   date: todayStr,
-  barberId: "",
   isClosed: true,
   customStart: "09:00",
   customEnd: "17:00",
@@ -39,10 +38,14 @@ export function SpecialSchedulesManager({
 }: {
   businessId: Id<"businesses">;
 }) {
+  const { session } = useAdminSession();
   const schedules = useQuery(api.specialSchedules.getByBusiness, { businessId });
-  const barbers = useQuery(api.barbers.getAllByBusiness, { businessId });
-  const upsert = useMutation(api.specialSchedules.upsert);
-  const remove = useMutation(api.specialSchedules.remove);
+  const upsertRaw = useMutation(api.specialSchedules.upsert);
+  const removeRaw = useMutation(api.specialSchedules.remove);
+  const upsert = (args: Omit<Parameters<typeof upsertRaw>[0], "token">) =>
+    upsertRaw({ ...args, token: session?.token ?? "" });
+  const remove = (args: Omit<Parameters<typeof removeRaw>[0], "token">) =>
+    removeRaw({ ...args, token: session?.token ?? "" });
 
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -57,7 +60,6 @@ export function SpecialSchedulesManager({
     try {
       await upsert({
         businessId,
-        barberId: form.barberId ? (form.barberId as Id<"barbers">) : undefined,
         date: form.date,
         isClosed: form.isClosed,
         customStart: form.isClosed ? undefined : form.customStart,
@@ -71,11 +73,9 @@ export function SpecialSchedulesManager({
     }
   }
 
-  if (!schedules || !barbers) {
+  if (!schedules) {
     return <div className="text-muted-foreground text-sm">טוען...</div>;
   }
-
-  const barberMap = Object.fromEntries(barbers.map((b) => [b._id, b.name.he]));
 
   // Sort by date ascending
   const sorted = [...schedules].sort((a, b) => a.date.localeCompare(b.date));
@@ -99,32 +99,15 @@ export function SpecialSchedulesManager({
       {showForm && (
         <Card>
           <CardContent className="py-4 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">תאריך</Label>
-                <Input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => set("date", e.target.value)}
-                  dir="ltr"
-                  className="text-left"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">ספר (ריק = כולם)</Label>
-                <select
-                  value={form.barberId}
-                  onChange={(e) => set("barberId", e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="">כל הספרים</option>
-                  {barbers.map((b) => (
-                    <option key={b._id} value={b._id}>
-                      {b.name.he}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">תאריך</Label>
+              <Input
+                type="date"
+                value={form.date}
+                onChange={(e) => set("date", e.target.value)}
+                dir="ltr"
+                className="text-left"
+              />
             </div>
 
             <div className="flex gap-4 items-center">
@@ -215,9 +198,6 @@ export function SpecialSchedulesManager({
                           ? "סגור"
                           : `${entry.customStart}–${entry.customEnd}`}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {entry.barberId ? barberMap[entry.barberId] : "כל הספרים"}
-                      </span>
                       {entry.note && (
                         <span className="text-xs text-muted-foreground">· {entry.note}</span>
                       )}

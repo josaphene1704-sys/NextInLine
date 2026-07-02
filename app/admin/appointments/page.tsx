@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { Doc, Id } from "@/convex/_generated/dataModel";
+import { AdminSessionProvider, useAdminSession } from "@/contexts/AdminSessionContext";
 import { formatPrice, formatSlotTime, toDateStr } from "@/lib/utils";
 import { downloadICS } from "@/lib/calendar";
 import { getColorByCode } from "@/lib/colors";
@@ -290,6 +292,33 @@ export default function AppointmentsAdminPage() {
   const businesses = useQuery(api.businesses.getAll);
   const business = businesses?.[0];
 
+  if (!businesses) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-muted-foreground">
+        טוען...
+      </div>
+    );
+  }
+
+  if (!business) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-destructive">
+        לא נמצא עסק במערכת
+      </div>
+    );
+  }
+
+  return (
+    <AdminSessionProvider slug={business._id}>
+      <AppointmentsAdminInner business={business} />
+    </AdminSessionProvider>
+  );
+}
+
+function AppointmentsAdminInner({ business }: { business: Doc<"businesses"> }) {
+  const { session } = useAdminSession();
+  const router = useRouter();
+
   // Date range — default: past 30 days → next 30 days
   const today = new Date();
   const [fromStr, setFromStr] = useState(() => {
@@ -303,14 +332,8 @@ export default function AppointmentsAdminPage() {
     return msToDateInput(d.getTime());
   });
 
-  const [selectedBarber, setSelectedBarber] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
-
-  const barbers = useQuery(
-    api.barbers.getAllByBusiness,
-    business ? { businessId: business._id } : "skip"
-  );
 
   const fromMs = dateInputToMs(fromStr);
   const toMs = dateInputToMs(toStr) + 86_400_000; // inclusive end day
@@ -322,7 +345,6 @@ export default function AppointmentsAdminPage() {
           businessId: business._id,
           fromMs,
           toMs,
-          barberId: selectedBarber ? (selectedBarber as Id<"barbers">) : undefined,
         }
       : "skip"
   );
@@ -373,7 +395,13 @@ export default function AppointmentsAdminPage() {
 
   const timezone = business?.timezone ?? "UTC";
 
-  if (!businesses) {
+  useEffect(() => {
+    if (!session || session.businessId !== business._id) {
+      router.replace("/admin");
+    }
+  }, [session, business._id, router]);
+
+  if (!session || session.businessId !== business._id) {
     return (
       <div className="flex items-center justify-center min-h-screen text-muted-foreground">
         טוען...
@@ -452,18 +480,6 @@ export default function AppointmentsAdminPage() {
             </div>
 
             <div className="flex gap-2 flex-wrap">
-              {/* Barber filter */}
-              <select
-                value={selectedBarber}
-                onChange={(e) => setSelectedBarber(e.target.value)}
-                className="h-8 rounded-xl glass-input text-xs px-3 cursor-pointer"
-              >
-                <option value="">כל הספרים</option>
-                {barbers?.map((b) => (
-                  <option key={b._id} value={b._id}>{b.name.he}</option>
-                ))}
-              </select>
-
               {/* Status filter */}
               {["all", "pending", "confirmed", "cancelled"].map((s) => (
                 <button
@@ -522,7 +538,7 @@ export default function AppointmentsAdminPage() {
                     timezone={timezone}
                     businessName={business?.name?.he ?? ""}
                     onConfirm={async () => {
-                      await updateStatus({ appointmentId: appt._id, status: "confirmed" });
+                      await updateStatus({ appointmentId: appt._id, status: "confirmed", token: session.token });
                       const url = buildConfirmWhatsAppUrl(
                         appt.customerPhone, appt.customerName, appt.startTime, timezone,
                         appt.service?.name?.he ?? "", business?.name?.he ?? "",
@@ -530,7 +546,7 @@ export default function AppointmentsAdminPage() {
                       window.open(url, "_blank", "noopener,noreferrer");
                     }}
                     onCancel={async () => {
-                      await updateStatus({ appointmentId: appt._id, status: "cancelled" });
+                      await updateStatus({ appointmentId: appt._id, status: "cancelled", token: session.token });
                       const url = buildCancelWhatsAppUrl(
                         appt.customerPhone, appt.customerName, appt.startTime, timezone,
                         appt.service?.name?.he ?? "", business?.name?.he ?? "",
@@ -547,7 +563,7 @@ export default function AppointmentsAdminPage() {
                         sequence: 2,
                       }, "ביטול-תור.ics");
                     }}
-                    onRestore={() => updateStatus({ appointmentId: appt._id, status: "pending" })}
+                    onRestore={() => updateStatus({ appointmentId: appt._id, status: "pending", token: session.token })}
                   />
                 ))}
               </div>

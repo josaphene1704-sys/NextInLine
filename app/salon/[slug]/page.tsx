@@ -132,8 +132,15 @@ export default function SalonPage() {
           open={adminModalOpen}
           onOpenChange={setAdminModalOpen}
           businessId={business._id}
-          authKey={`adminAuthenticated_${slug}`}
           adminSuccessPath={`/salon/${slug}/admin`}
+          onAuthenticated={(token) => {
+            // Written directly here (before AdminSessionProvider mounts on the
+            // admin page) using the same storage key/shape it reads on load.
+            localStorage.setItem(
+              `adminSession_${slug}`,
+              JSON.stringify({ businessId: business._id, token })
+            );
+          }}
         />
       )}
     </main>

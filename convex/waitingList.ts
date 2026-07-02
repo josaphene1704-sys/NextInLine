@@ -10,13 +10,13 @@ import { v } from "convex/values";
 import { QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { isValidPhone } from "./helpers";
+import { requireBusinessSession } from "./authHelpers";
 
 // ─── joinWaitingList ─────────────────────────────────────────────────────────
 
 export const joinWaitingList = mutation({
   args: {
     businessId: v.id("businesses"),
-    barberId: v.optional(v.id("barbers")),
     serviceId: v.optional(v.id("services")),
     date: v.string(),
     timePreference: v.union(
@@ -55,7 +55,6 @@ export const joinWaitingList = mutation({
 
     return await ctx.db.insert("waitingList", {
       businessId:     args.businessId,
-      barberId:       args.barberId,
       serviceId:      args.serviceId,
       date:           args.date,
       timePreference: args.timePreference,
@@ -131,10 +130,11 @@ export const cancelEntry = mutation({
 // ─── removeEntry (admin removes any entry) ───────────────────────────────────
 
 export const removeEntry = mutation({
-  args: { entryId: v.id("waitingList") },
-  handler: async (ctx, { entryId }) => {
+  args: { token: v.string(), entryId: v.id("waitingList") },
+  handler: async (ctx, { token, entryId }) => {
     const entry = await ctx.db.get(entryId);
     if (!entry) throw new Error("Entry not found");
+    await requireBusinessSession(ctx, token, entry.businessId);
     await ctx.db.delete(entryId);
     return { success: true };
   },

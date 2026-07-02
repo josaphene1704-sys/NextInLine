@@ -3,9 +3,11 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useLang } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import BookingWizard from "@/components/booking/BookingWizard";
 import AuthWidget from "@/components/AuthWidget";
 import { AdminPasswordModal } from "@/components/AdminPasswordModal";
+import { UpcomingAppointmentsBanner } from "@/components/booking/UpcomingAppointmentsBanner";
 import { Sparkles, MapPin, Phone, AlertCircle } from "lucide-react";
 import { GallerySection } from "@/components/GallerySection";
 import { GalleryPreviewButton } from "@/components/GalleryPreviewButton";
@@ -26,6 +28,7 @@ function LanguageToggle() {
 
 export default function Home() {
   const { t } = useLang();
+  const { user } = useAuth();
   const businesses = useQuery(api.businesses.getAll);
   const business = businesses?.[0];
   const [adminModalOpen, setAdminModalOpen] = useState(false);
@@ -144,6 +147,13 @@ export default function Home() {
         />
       )}
 
+      {/* Upcoming appointments & waiting list — shown to logged-in users */}
+      {business && user && (
+        <div className="w-full max-w-2xl mx-auto px-4 pb-4">
+          <UpcomingAppointmentsBanner customerPhone={user.phone} businessId={business._id} />
+        </div>
+      )}
+
       {/* Booking wizard — only when shop is active */}
       {business && business.isActive !== false && (
         <BookingWizard businessId={business._id} />
@@ -162,7 +172,18 @@ export default function Home() {
         </div>
       )}
 
-      <AdminPasswordModal open={adminModalOpen} onOpenChange={setAdminModalOpen} />
+      <AdminPasswordModal
+        open={adminModalOpen}
+        onOpenChange={setAdminModalOpen}
+        businessId={business?._id}
+        onAuthenticated={(token) => {
+          if (!business) return;
+          localStorage.setItem(
+            `adminSession_${business._id}`,
+            JSON.stringify({ businessId: business._id, token })
+          );
+        }}
+      />
     </main>
   );
 }

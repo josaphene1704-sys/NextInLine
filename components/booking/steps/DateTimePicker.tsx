@@ -17,7 +17,6 @@ interface TimeSlot {
 
 interface Props {
   businessId: Id<"businesses">;
-  barberId: Id<"barbers">;
   serviceId: Id<"services">;
   selectedDate: string | null;
   selectedSlot: TimeSlot | null;
@@ -65,7 +64,6 @@ function buildCalendarCells(year: number, month: number): (Date | null)[] {
 
 export default function DateTimePicker({
   businessId,
-  barberId,
   serviceId,
   selectedDate,
   selectedSlot,
@@ -87,7 +85,7 @@ export default function DateTimePicker({
 
   const slotsResult = useQuery(
     api.appointments.getAvailableSlots,
-    selectedDate ? { barberId, serviceId, date: selectedDate } : "skip"
+    selectedDate ? { businessId, serviceId, date: selectedDate } : "skip"
   );
 
   const timezone = slotsResult?.timezone ?? "Asia/Jerusalem";
@@ -299,7 +297,6 @@ export default function DateTimePicker({
       {waitingListOpen && selectedDate && (
         <WaitingListModal
           businessId={businessId}
-          barberId={barberId}
           serviceId={serviceId}
           date={selectedDate}
           onClose={() => setWaitingListOpen(false)}

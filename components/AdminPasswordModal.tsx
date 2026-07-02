@@ -15,8 +15,9 @@ interface AdminPasswordModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   businessId?: Id<"businesses">;
-  authKey?: string;
   adminSuccessPath?: string;
+  /** Called with the freshly-issued session token on successful login/activation. */
+  onAuthenticated?: (token: string) => void;
 }
 
 type Phase = "login" | "force-change";
@@ -25,8 +26,8 @@ export function AdminPasswordModal({
   open,
   onOpenChange,
   businessId,
-  authKey = "adminAuthenticated",
   adminSuccessPath = "/admin",
+  onAuthenticated,
 }: AdminPasswordModalProps) {
   const [phase, setPhase] = useState<Phase>("login");
   const [password, setPassword] = useState("");
@@ -56,11 +57,11 @@ export function AdminPasswordModal({
     setLoading(true);
     setError(null);
     try {
-      const { isFirstLogin } = await verifyPassword({ password, businessId });
+      const { isFirstLogin, token } = await verifyPassword({ password, businessId });
       if (isFirstLogin) {
         setPhase("force-change");
       } else {
-        localStorage.setItem(authKey, "1");
+        if (token) onAuthenticated?.(token);
         handleClose();
         router.push(adminSuccessPath);
       }
@@ -87,12 +88,12 @@ export function AdminPasswordModal({
     try {
       // Atomic: server re-verifies the temp password and sets the new one
       // in a single transaction — the client cannot skip the verification step.
-      await activateAndSetPassword({
+      const { token } = await activateAndSetPassword({
         businessId,
         currentPassword: password, // the temp password entered in the login phase
         newPassword,
       });
-      localStorage.setItem(authKey, "1");
+      onAuthenticated?.(token);
       handleClose();
       router.push(adminSuccessPath);
     } catch (err: unknown) {

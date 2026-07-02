@@ -1,8 +1,11 @@
-import { mutation } from "./_generated/server";
+import { internalMutation, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { performSeedIfEmpty } from "./businesses";
+import { issueSession, invalidateBusinessSessions } from "./authHelpers";
 
-const DEFAULT_PASSWORD = "admin10";
+// Legacy single-tenant fallback password. Must be set via `npx convex env set
+// LEGACY_ADMIN_DEFAULT_PASSWORD ...` — fails closed (no hardcoded default) if unset.
+const DEFAULT_PASSWORD = process.env.LEGACY_ADMIN_DEFAULT_PASSWORD;
 
 // ─── verifyAdminPassword ──────────────────────────────────────────────────────
 
@@ -11,7 +14,7 @@ export const verifyAdminPassword = mutation({
     password: v.string(),
     businessId: v.optional(v.id("businesses")),
   },
-  handler: async (ctx, args): Promise<{ isFirstLogin: boolean }> => {
+  handler: async (ctx, args): Promise<{ isFirstLogin: boolean; token?: string }> => {
     // Per-business auth (multi-tenant)
     if (args.businessId) {
       const business = await ctx.db.get(args.businessId);
@@ -19,6 +22,7 @@ export const verifyAdminPassword = mutation({
       if (business.isActive === false) throw new Error("Account suspended");
 
       // First-login path: match against temporaryPassword directly, skip adminPassword entirely.
+      // No token yet — the client must go through activateAndSetPassword next, which issues one.
       if (business.isFirstLogin !== false && business.temporaryPassword === args.password) {
         return { isFirstLogin: true };
       }
@@ -27,7 +31,8 @@ export const verifyAdminPassword = mutation({
       const stored = business.adminPassword;
       if (!stored || stored !== args.password) throw new Error("סיסמה שגויה");
 
-      return { isFirstLogin: business.isFirstLogin ?? false };
+      const token = await issueSession(ctx, "admin", args.businessId);
+      return { isFirstLogin: business.isFirstLogin ?? false, token };
     }
 
     // Legacy single-tenant auth (global settings)
@@ -39,20 +44,31 @@ export const verifyAdminPassword = mutation({
       .withIndex("by_key", (q) => q.eq("key", "adminPassword"))
       .unique();
 
-    if ((setting?.value ?? DEFAULT_PASSWORD) !== args.password) throw new Error("סיסמה שגויה");
+    const expected = setting?.value ?? DEFAULT_PASSWORD;
+    if (!expected || expected !== args.password) throw new Error("סיסמה שגויה");
 
     const firstLoginSetting = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "isFirstLogin"))
       .unique();
 
-    return { isFirstLogin: firstLoginSetting?.value !== "false" };
+    const isFirstLogin = firstLoginSetting?.value !== "false";
+    if (isFirstLogin) return { isFirstLogin: true };
+
+    // Legacy path has no businessId, so this token can't satisfy
+    // requireBusinessSession for any real business — only useful if a legacy
+    // mutation is ever added that accepts a businessId-less "admin" session.
+    const token = await issueSession(ctx, "admin", undefined);
+    return { isFirstLogin: false, token };
   },
 });
 
 // ─── forceChangePasswordOnFirstLogin ─────────────────────────────────────────
+// No client component calls this (activateAndSetPassword is the wired-up,
+// atomically-verified path). Kept as an internalMutation only — not
+// client-callable — since it sets a password with no re-verification.
 
-export const forceChangePasswordOnFirstLogin = mutation({
+export const forceChangePasswordOnFirstLogin = internalMutation({
   args: {
     newPassword: v.string(),
     businessId: v.optional(v.id("businesses")),
@@ -146,7 +162,7 @@ export const activateAndSetPassword = mutation({
   handler: async (
     ctx,
     { businessId, currentPassword, newPassword, nameHe, nameAr, phone, address }
-  ): Promise<{ wasFirstLogin: boolean }> => {
+  ): Promise<{ wasFirstLogin: boolean; token: string }> => {
     // 1. Load — never trust a client-supplied identity claim.
     const business = await ctx.db.get(businessId);
     if (!business) throw new Error("מספרה לא נמצאה");
@@ -193,19 +209,28 @@ export const activateAndSetPassword = mutation({
       await performSeedIfEmpty(ctx, businessId);
     }
 
-    return { wasFirstLogin: isFirstLogin };
+    // 6. Rotate sessions: kill any stale tokens from before this password
+    //    change, then issue a fresh one for the caller.
+    await invalidateBusinessSessions(ctx, businessId);
+    const token = await issueSession(ctx, "admin", businessId);
+
+    return { wasFirstLogin: isFirstLogin, token };
   },
 });
 
 // ─── verifyMasterPassword ────────────────────────────────────────────────────
 
-const MASTER_PASSWORD = "boss2025";
+// Must be set via `npx convex env set BOSS_MASTER_PASSWORD ...` — fails
+// closed (no hardcoded default) if unset.
+const MASTER_PASSWORD = process.env.BOSS_MASTER_PASSWORD;
 
 export const verifyMasterPassword = mutation({
   args: { password: v.string() },
-  handler: async (_ctx, { password }) => {
+  handler: async (ctx, { password }) => {
+    if (!MASTER_PASSWORD) throw new Error("Master password is not configured");
     if (password !== MASTER_PASSWORD) throw new Error("סיסמה שגויה");
-    return { ok: true };
+    const token = await issueSession(ctx, "boss");
+    return { ok: true, token };
   },
 });
 
@@ -217,7 +242,7 @@ export const updateAdminPassword = mutation({
     newPassword: v.string(),
     businessId: v.optional(v.id("businesses")),
   },
-  handler: async (ctx, args): Promise<void> => {
+  handler: async (ctx, args): Promise<{ token?: string }> => {
     if (!args.newPassword || args.newPassword.length < 4) {
       throw new Error("הסיסמה החדשה קצרה מדי");
     }
@@ -228,13 +253,18 @@ export const updateAdminPassword = mutation({
       if (!business) throw new Error("Business not found");
 
       const stored = business.adminPassword ?? business.temporaryPassword ?? DEFAULT_PASSWORD;
-      if (stored !== args.currentPassword) throw new Error("סיסמה שגויה");
+      if (!stored || stored !== args.currentPassword) throw new Error("סיסמה שגויה");
 
       await ctx.db.patch(args.businessId, {
         adminPassword: args.newPassword,
         isFirstLogin: false,
       });
-      return;
+
+      // Rotate sessions: kill stale tokens, re-issue one for the caller so
+      // they aren't logged out by their own password change.
+      await invalidateBusinessSessions(ctx, args.businessId);
+      const token = await issueSession(ctx, "admin", args.businessId);
+      return { token };
     }
 
     // Legacy global settings
@@ -244,7 +274,7 @@ export const updateAdminPassword = mutation({
       .unique();
 
     const stored = setting?.value ?? DEFAULT_PASSWORD;
-    if (stored !== args.currentPassword) throw new Error("סיסמה שגויה");
+    if (!stored || stored !== args.currentPassword) throw new Error("סיסמה שגויה");
 
     if (setting) {
       await ctx.db.patch(setting._id, { value: args.newPassword });
@@ -262,5 +292,21 @@ export const updateAdminPassword = mutation({
     } else if (!firstLoginSetting) {
       await ctx.db.insert("settings", { key: "isFirstLogin", value: "false" });
     }
+
+    return {};
+  },
+});
+
+// ─── invalidateSession (logout) ───────────────────────────────────────────────
+
+export const invalidateSession = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .unique();
+    if (session) await ctx.db.delete(session._id);
+    return { success: true };
   },
 });

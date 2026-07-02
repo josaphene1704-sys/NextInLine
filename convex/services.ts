@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireBusinessSession } from "./authHelpers";
 
 // ─── Shared validator ─────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ export const getById = query({
 
 export const create = mutation({
   args: {
+    token: v.string(),
     businessId: v.id("businesses"),
     name: v.object({ he: v.string(), ar: v.string() }),
     description: v.object({ he: v.string(), ar: v.string() }),
@@ -57,7 +59,9 @@ export const create = mutation({
     depositAmount: v.optional(v.number()),
     bufferMinutes: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { token, ...args }) => {
+    await requireBusinessSession(ctx, token, args.businessId);
+
     const business = await ctx.db.get(args.businessId);
     if (!business) throw new Error("Business not found");
     if (args.duration <= 0) throw new Error("Duration must be positive");
@@ -73,6 +77,7 @@ export const create = mutation({
 
 export const update = mutation({
   args: {
+    token: v.string(),
     serviceId: v.id("services"),
     name: v.optional(v.object({ he: v.string(), ar: v.string() })),
     description: v.optional(v.object({ he: v.string(), ar: v.string() })),
@@ -85,9 +90,11 @@ export const update = mutation({
     bufferMinutes: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
   },
-  handler: async (ctx, { serviceId, ...fields }) => {
+  handler: async (ctx, { token, serviceId, ...fields }) => {
     const existing = await ctx.db.get(serviceId);
     if (!existing) throw new Error("Service not found");
+    await requireBusinessSession(ctx, token, existing.businessId);
+
     if (fields.duration !== undefined && fields.duration <= 0)
       throw new Error("Duration must be positive");
     if (fields.price !== undefined && fields.price < 0)

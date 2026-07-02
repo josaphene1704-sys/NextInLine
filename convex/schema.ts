@@ -44,6 +44,16 @@ export default defineSchema({
     adminPassword: v.optional(v.string()),
     isFirstLogin: v.optional(v.boolean()),
     isTemplate: v.optional(v.boolean()),
+    // Billing / subscription (SaaS: 14-day trial → 149 ILS/mo)
+    subscriptionStatus: v.optional(v.union(
+      v.literal("trial"),
+      v.literal("active"),
+      v.literal("past_due"),
+      v.literal("cancelled"),
+    )),
+    trialEndsAt: v.optional(v.number()),    // ms epoch — set at provision time
+    subscriptionId: v.optional(v.string()), // payment provider subscription id (placeholder)
+    customerToken: v.optional(v.string()),  // payment provider customer/card token (placeholder)
   })
     .index("by_slug", ["slug"])
     .index("by_template", ["isTemplate"]),
@@ -168,4 +178,15 @@ export default defineSchema({
     .index("by_business_date", ["businessId", "date"])
     .index("by_business_date_status", ["businessId", "date", "status"])
     .index("by_customer_phone", ["customerPhone"]),
+
+  // ─── sessions ────────────────────────────────────────────────────────────
+  sessions: defineTable({
+    token: v.string(),                          // opaque random session id
+    role: v.union(v.literal("admin"), v.literal("boss")),
+    businessId: v.optional(v.id("businesses")), // undefined for boss sessions
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_business", ["businessId"]),
 });

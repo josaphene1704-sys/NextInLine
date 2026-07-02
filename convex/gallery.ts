@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireBusinessSession } from "./authHelpers";
 
 export const getByBusiness = query({
   args: { businessId: v.id("businesses") },
@@ -21,21 +22,24 @@ export const getByBusiness = query({
 
 export const add = mutation({
   args: {
+    token: v.string(),
     businessId: v.id("businesses"),
     serviceId: v.optional(v.id("services")),
     storageId: v.id("_storage"),
     caption: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { token, ...args }) => {
+    await requireBusinessSession(ctx, token, args.businessId);
     return await ctx.db.insert("gallery", args);
   },
 });
 
 export const remove = mutation({
-  args: { galleryId: v.id("gallery") },
-  handler: async (ctx, { galleryId }) => {
+  args: { token: v.string(), galleryId: v.id("gallery") },
+  handler: async (ctx, { token, galleryId }) => {
     const item = await ctx.db.get(galleryId);
     if (!item) throw new Error("Gallery item not found");
+    await requireBusinessSession(ctx, token, item.businessId);
     await ctx.storage.delete(item.storageId);
     await ctx.db.delete(galleryId);
   },

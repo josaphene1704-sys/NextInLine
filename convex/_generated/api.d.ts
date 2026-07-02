@@ -10,6 +10,8 @@
 
 import type * as appointments from "../appointments.js";
 import type * as auth from "../auth.js";
+import type * as authHelpers from "../authHelpers.js";
+import type * as barberHelpers from "../barberHelpers.js";
 import type * as barbers from "../barbers.js";
 import type * as businesses from "../businesses.js";
 import type * as files from "../files.js";
@@ -31,6 +33,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   appointments: typeof appointments;
   auth: typeof auth;
+  authHelpers: typeof authHelpers;
+  barberHelpers: typeof barberHelpers;
   barbers: typeof barbers;
   businesses: typeof businesses;
   files: typeof files;

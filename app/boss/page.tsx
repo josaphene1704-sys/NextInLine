@@ -11,19 +11,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const AUTH_KEY = "bossAuthenticated";
+const SESSION_KEY = "bossSession";
 
-export default function BossPage() {
-  const [isAuthed, setIsAuthed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !!localStorage.getItem(AUTH_KEY);
-  });
-
-  if (!isAuthed) return <LoginScreen onSuccess={() => setIsAuthed(true)} />;
-  return <BossDashboard />;
+interface BossSession {
+  token: string;
 }
 
-function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
+function readBossSession(): BossSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as BossSession) : null;
+  } catch {
+    return null;
+  }
+}
+
+export default function BossPage() {
+  const [session, setSession] = useState<BossSession | null>(() => readBossSession());
+
+  if (!session) return <LoginScreen onSuccess={(s) => setSession(s)} />;
+  return <BossDashboard session={session} onLogout={() => setSession(null)} />;
+}
+
+function LoginScreen({ onSuccess }: { onSuccess: (session: BossSession) => void }) {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,9 +46,10 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      await verify({ password });
-      localStorage.setItem(AUTH_KEY, "1");
-      onSuccess();
+      const { token } = await verify({ password });
+      const session: BossSession = { token };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      onSuccess(session);
     } catch {
       setError("סיסמה שגויה");
     } finally {
@@ -87,9 +99,10 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function BossDashboard() {
+function BossDashboard({ session, onLogout }: { session: BossSession; onLogout: () => void }) {
   const businesses = useQuery(api.businesses.getAll);
   const provision = useMutation(api.businesses.provision);
+  const invalidateSession = useMutation(api.settings.invalidateSession);
 
   const [slug, setSlug] = useState("");
   const [nameHe, setNameHe] = useState("");
@@ -105,7 +118,7 @@ function BossDashboard() {
     setError(null);
     setResult(null);
     try {
-      const res = await provision({ slug: slug.trim(), nameHe: nameHe.trim() });
+      const res = await provision({ slug: slug.trim(), nameHe: nameHe.trim(), token: session.token });
       setResult(res);
       setSlug("");
       setNameHe("");
@@ -134,7 +147,11 @@ function BossDashboard() {
             <h1 className="text-lg font-bold">ניהול מערכת NextInLine</h1>
           </div>
           <button
-            onClick={() => { localStorage.removeItem(AUTH_KEY); window.location.reload(); }}
+            onClick={() => {
+              invalidateSession({ token: session.token }).catch(() => {});
+              localStorage.removeItem(SESSION_KEY);
+              onLogout();
+            }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             התנתקות
