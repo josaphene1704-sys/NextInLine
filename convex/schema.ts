@@ -52,8 +52,16 @@ export default defineSchema({
       v.literal("cancelled"),
     )),
     trialEndsAt: v.optional(v.number()),    // ms epoch — set at provision time
-    subscriptionId: v.optional(v.string()), // payment provider subscription id (placeholder)
+    subscriptionId: v.optional(v.string()), // Polar subscription id (active plan)
     customerToken: v.optional(v.string()),  // payment provider customer/card token (placeholder)
+    // Polar billing linkage
+    polarCustomerId: v.optional(v.string()),      // Polar customer id (from webhook)
+    subscriptionProductId: v.optional(v.string()), // Polar product id of the active plan
+    subscriptionPlan: v.optional(v.union(          // convenience label for the active plan
+      v.literal("basic"),
+      v.literal("premium"),
+    )),
+    extraMessageCredits: v.optional(v.number()),   // one-time "extra N messages" packs purchased
   })
     .index("by_slug", ["slug"])
     .index("by_template", ["isTemplate"]),

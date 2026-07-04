@@ -1,12 +1,20 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useState } from "react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useAdminSession } from "@/contexts/AdminSessionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CalendarClock, CheckCircle2, Clock, Sparkles, Users, Bell, CalendarDays, MessageCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, Sparkles, Bell, CalendarDays, MessageCircle, Loader2 } from "lucide-react";
+
+// Maps a pricing card to the Polar product keys defined in convex/polarProducts.ts
+type ProductKey = "basic" | "premium" | "extraBasic" | "extraPremium";
+const PLAN_PRODUCT: Record<string, { plan: ProductKey; extra: ProductKey }> = {
+  basic:    { plan: "basic",   extra: "extraBasic" },
+  extended: { plan: "premium", extra: "extraPremium" },
+};
 
 const TRIAL_LENGTH_DAYS = 14;
 
@@ -63,6 +71,28 @@ export function SubscriptionManager({ businessId }: { businessId: Id<"businesses
     api.businesses.getBillingStatus,
     session ? { token: session.token, businessId } : "skip"
   );
+  const createCheckout = useAction(api.polar.createCheckout);
+  const [pending, setPending] = useState<ProductKey | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  async function goToCheckout(product: ProductKey) {
+    if (!session) return;
+    setPending(product);
+    setCheckoutError(null);
+    try {
+      const { url } = await createCheckout({
+        token: session.token,
+        businessId,
+        product,
+        // Return the salon owner to this same admin page after payment.
+        successUrl: window.location.href,
+      });
+      window.location.href = url;
+    } catch {
+      setCheckoutError("פתיחת התשלום נכשלה. נסי שוב.");
+      setPending(null);
+    }
+  }
 
   if (!billing) {
     return <div className="text-muted-foreground text-sm">טוען פרטי מנוי...</div>;
@@ -128,6 +158,12 @@ export function SubscriptionManager({ businessId }: { businessId: Id<"businesses
         </CardContent>
       </Card>
 
+      {checkoutError && (
+        <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-3 py-2">
+          {checkoutError}
+        </p>
+      )}
+
       {/* Pricing cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {PLANS.map((plan) => (
@@ -162,17 +198,37 @@ export function SubscriptionManager({ businessId }: { businessId: Id<"businesses
                 ))}
               </ul>
 
-              <Button
-                className="w-full gap-2"
-                disabled={status === "active"}
-                onClick={() => {
-                  // Payment provider integration not wired up yet — this is a
-                  // placeholder CTA until a checkout flow is built.
-                  alert("החיוב האוטומטי יופעל בקרוב — נציג יצור איתך קשר.");
-                }}
-              >
-                {status === "active" ? "המנוי פעיל" : "שדרגי עכשיו"}
-              </Button>
+              {(() => {
+                const keys = PLAN_PRODUCT[plan.id];
+                if (!keys) return null;
+                const busy = pending !== null;
+                const extraDef = keys.extra === "extraPremium"
+                  ? { count: 100, price: 50 }
+                  : { count: 50, price: 30 };
+                return (
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full gap-2"
+                      disabled={status === "active" || busy}
+                      onClick={() => goToCheckout(keys.plan)}
+                    >
+                      {pending === keys.plan
+                        ? <><Loader2 className="w-4 h-4 animate-spin" />מעבירה לתשלום...</>
+                        : status === "active" ? "המנוי פעיל" : "שדרגי עכשיו"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 text-xs"
+                      disabled={busy}
+                      onClick={() => goToCheckout(keys.extra)}
+                    >
+                      {pending === keys.extra
+                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />מעבירה לתשלום...</>
+                        : <><MessageCircle className="w-3.5 h-3.5" />{`רכשי ${extraDef.count} הודעות נוספות · ₪${extraDef.price}`}</>}
+                    </Button>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         ))}
