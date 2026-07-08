@@ -30,8 +30,10 @@ export function BusinessSettings({ business }: { business: Doc<"businesses"> }) 
     legacyToSchedules(business.workingHours)
   );
   const [interval, setInterval] = useState(business.workingHours.slotIntervalMinutes ?? 30);
+  const [announcement, setAnnouncement] = useState(business.announcement ?? "");
 
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [announceStatus, setAnnounceStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   async function handleSave() {
     setStatus("saving");
@@ -57,6 +59,24 @@ export function BusinessSettings({ business }: { business: Doc<"businesses"> }) 
       // Otherwise it's a transient error — surface it instead of swallowing.
       const stillValid = await revalidate();
       if (stillValid) setStatus("error");
+    }
+  }
+
+  async function handleSaveAnnouncement() {
+    setAnnounceStatus("saving");
+    try {
+      // Empty string is sent intentionally — the server unsets the field, which
+      // hides the notice on the customer page.
+      await updateBusiness({
+        businessId: business._id,
+        token: session?.token ?? "",
+        announcement,
+      });
+      setAnnounceStatus("saved");
+      setTimeout(() => setAnnounceStatus("idle"), 2500);
+    } catch {
+      const stillValid = await revalidate();
+      if (stillValid) setAnnounceStatus("error");
     }
   }
 
@@ -97,6 +117,45 @@ export function BusinessSettings({ business }: { business: Doc<"businesses"> }) 
             <Label className="text-xs text-muted-foreground">תמונת כותרת</Label>
             <ImageUpload value={imageUrl} onChange={setImageUrl} shape="banner" />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">הודעה ללקוחות</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Field label="הודעה שתוצג בראש דף הלקוחות (למשל: נא להגיע בזמן)">
+            <Input
+              value={announcement}
+              onChange={(e) => setAnnouncement(e.target.value)}
+              placeholder="נא להגיע בזמן"
+              maxLength={280}
+            />
+          </Field>
+          <div className="flex items-center gap-3">
+            <Button size="sm" onClick={handleSaveAnnouncement} disabled={announceStatus === "saving"}>
+              {announceStatus === "saving" ? "שומר..." : "שמור הודעה"}
+            </Button>
+            {announceStatus === "saved" && (
+              <span className="text-sm text-green-600 font-medium">נשמר בהצלחה ✓</span>
+            )}
+            {announceStatus === "error" && (
+              <span className="text-sm text-destructive font-medium">השמירה נכשלה. נסי שוב.</span>
+            )}
+            {announcement && (
+              <button
+                type="button"
+                onClick={() => { setAnnouncement(""); }}
+                className="text-xs text-muted-foreground underline hover:text-foreground"
+              >
+                נקה
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            כדי להסיר את ההודעה, נקי את השדה ושמרי.
+          </p>
         </CardContent>
       </Card>
 

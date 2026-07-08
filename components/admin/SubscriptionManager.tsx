@@ -7,7 +7,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useAdminSession } from "@/contexts/AdminSessionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CalendarClock, CheckCircle2, Clock, Sparkles, Bell, CalendarDays, MessageCircle, Loader2 } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, Sparkles, Bell, CalendarDays, MessageCircle, Loader2, Settings2 } from "lucide-react";
 
 // Maps a pricing card to the Polar product keys defined in convex/polarProducts.ts
 type ProductKey = "basic" | "premium" | "extraBasic" | "extraPremium";
@@ -72,7 +72,9 @@ export function SubscriptionManager({ businessId }: { businessId: Id<"businesses
     session ? { token: session.token, businessId } : "skip"
   );
   const createCheckout = useAction(api.polar.createCheckout);
+  const createCustomerPortal = useAction(api.polar.createCustomerPortal);
   const [pending, setPending] = useState<ProductKey | null>(null);
+  const [portalPending, setPortalPending] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   async function goToCheckout(product: ProductKey) {
@@ -91,6 +93,19 @@ export function SubscriptionManager({ businessId }: { businessId: Id<"businesses
     } catch {
       setCheckoutError("פתיחת התשלום נכשלה. נסי שוב.");
       setPending(null);
+    }
+  }
+
+  async function goToPortal() {
+    if (!session) return;
+    setPortalPending(true);
+    setCheckoutError(null);
+    try {
+      const { url } = await createCustomerPortal({ token: session.token, businessId });
+      window.location.href = url;
+    } catch {
+      setCheckoutError("פתיחת ניהול המנוי נכשלה. נסי שוב.");
+      setPortalPending(false);
     }
   }
 
@@ -154,6 +169,21 @@ export function SubscriptionManager({ businessId }: { businessId: Id<"businesses
             <p className="text-sm text-muted-foreground bg-muted/40 rounded-xl px-3 py-2">
               המנוי בוטל. ניתן להפעיל אותו מחדש בכל עת.
             </p>
+          )}
+
+          {/* Once a Polar customer exists (any non-trial status) the owner can
+              open the Polar portal to change plan, update the card, or cancel. */}
+          {status !== "trial" && (
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              disabled={portalPending}
+              onClick={goToPortal}
+            >
+              {portalPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" />פותח...</>
+                : <><Settings2 className="w-4 h-4" />ניהול המנוי (שינוי חבילה / ביטול / אמצעי תשלום)</>}
+            </Button>
           )}
         </CardContent>
       </Card>

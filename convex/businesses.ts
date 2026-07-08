@@ -353,6 +353,7 @@ export const update = mutation({
     imageUrl: v.optional(v.string()),
     workingHours: v.optional(workingHoursArg),
     timezone: v.optional(v.string()),
+    announcement: v.optional(v.string()),
   },
   handler: async (ctx, { token, businessId, ...fields }) => {
     const existing = await ctx.db.get(businessId);
@@ -363,10 +364,11 @@ export const update = mutation({
       Object.entries(fields).filter(([, v]) => v !== undefined)
     );
 
-    // Empty string ⇒ explicit "remove image". Patching a field to `undefined`
+    // Empty string ⇒ explicit "remove". Patching a field to `undefined`
     // unsets it, so the optional field disappears rather than storing "".
     if (fields.logoUrl === "")  patch.logoUrl  = undefined;
     if (fields.imageUrl === "") patch.imageUrl = undefined;
+    if (fields.announcement === "") patch.announcement = undefined;
 
     await ctx.db.patch(businessId, patch);
     return { success: true };
@@ -420,6 +422,32 @@ export const setAsTemplate = mutation({
 
     await ctx.db.patch(businessId, { isTemplate: true });
     return { success: true };
+  },
+});
+
+/**
+ * Sets (or changes) the URL slug of an existing business. There is otherwise no
+ * way to give a slug to a business created without one — notably the template
+ * salon, which is left slug-less by default so it isn't reached by accident.
+ * Rejects a slug already taken by another business.
+ * Admin-only (internalMutation) — run from the CLI/dashboard, no client UI.
+ */
+export const setSlug = internalMutation({
+  args: { businessId: v.id("businesses"), slug: v.string() },
+  handler: async (ctx, { businessId, slug }) => {
+    const business = await ctx.db.get(businessId);
+    if (!business) throw new Error("Business not found");
+
+    const clash = await ctx.db
+      .query("businesses")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+    if (clash && clash._id !== businessId) {
+      throw new Error(`Slug "${slug}" is already taken by another business`);
+    }
+
+    await ctx.db.patch(businessId, { slug });
+    return { success: true, slug };
   },
 });
 

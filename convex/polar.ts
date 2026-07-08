@@ -65,3 +65,32 @@ export const createCheckout = action({
     return { url: checkout.url };
   },
 });
+
+/**
+ * Create a Polar Customer Portal session and return its URL. The portal is
+ * where the salon owner manages their existing subscription: change plan
+ * (upgrade/downgrade), update the payment method, or cancel. Any change made
+ * there flows back to us via the subscription.* webhooks.
+ *
+ * Session-gated like createCheckout. Resolves the Polar customer by the same
+ * externalCustomerId we set at checkout (the businessId), so no customer id
+ * needs to be stored. Only meaningful once the salon has been through checkout
+ * (i.e. a Polar customer exists) — the caller gates the button on that.
+ */
+export const createCustomerPortal = action({
+  args: {
+    token: v.string(),
+    businessId: v.id("businesses"),
+  },
+  handler: async (ctx, { token, businessId }): Promise<{ url: string }> => {
+    const ok = await ctx.runQuery(api.settings.validateSession, { token, businessId });
+    if (!ok) throw new Error("Unauthorized");
+
+    const polar = polarClient();
+    const session = await polar.customerSessions.create({
+      externalCustomerId: businessId,
+    });
+
+    return { url: session.customerPortalUrl };
+  },
+});

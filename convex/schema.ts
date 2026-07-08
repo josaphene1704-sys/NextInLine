@@ -37,6 +37,8 @@ export default defineSchema({
     workingHours: workingHoursValidator,
     timezone: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    announcement: v.optional(v.string()), // free-text notice shown to customers on the salon page
+
     // Multi-tenant fields
     slug: v.optional(v.string()),
     temporaryPassword: v.optional(v.string()),
