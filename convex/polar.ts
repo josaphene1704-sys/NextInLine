@@ -42,11 +42,24 @@ export const createCheckout = action({
     const def = POLAR_PRODUCTS[product as PolarProductKey];
     const polar = polarClient();
 
+    // For subscription plans, align a Polar free-trial to whatever is left of
+    // the salon's app-side trial so no card is charged until the original
+    // trialEndsAt. Once the trial is over (or for one-time extras) we bill now.
+    let trial: { trialInterval: "day"; trialIntervalCount: number } | { allowTrial: false } | {} = {};
+    if (def.kind === "subscription") {
+      const billing = await ctx.runQuery(api.businesses.getBillingStatus, { token, businessId });
+      const remainingDays = billing.status === "trial" ? (billing.daysRemaining ?? 0) : 0;
+      trial = remainingDays > 0
+        ? { trialInterval: "day", trialIntervalCount: remainingDays }
+        : { allowTrial: false };
+    }
+
     const checkout = await polar.checkouts.create({
       products: [def.id],
       successUrl,
       externalCustomerId: businessId,
       metadata: { businessId, product },
+      ...trial,
     });
 
     return { url: checkout.url };
