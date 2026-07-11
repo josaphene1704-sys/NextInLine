@@ -189,6 +189,16 @@ export default defineSchema({
     .index("by_business_date_status", ["businessId", "date", "status"])
     .index("by_customer_phone", ["customerPhone"]),
 
+  // ─── otpCodes ────────────────────────────────────────────────────────────
+  // Dev-fallback OTP storage (production uses Twilio Verify, which keeps the
+  // code on Twilio's side). One live code per phone, short TTL, single-use.
+  otpCodes: defineTable({
+    phone: v.string(),
+    code: v.string(),
+    expiresAt: v.number(),
+    attempts: v.number(),
+  }).index("by_phone", ["phone"]),
+
   // ─── sessions ────────────────────────────────────────────────────────────
   sessions: defineTable({
     token: v.string(),                          // opaque random session id

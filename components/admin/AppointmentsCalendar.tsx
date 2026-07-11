@@ -369,12 +369,12 @@ export function AppointmentsCalendar({
 }) {
   const fromMs = new Date().setUTCHours(0, 0, 0, 0);
 
-  const appointments = useQuery(api.appointments.getUpcoming, {
-    businessId,
-    fromMs,
-  });
-
   const { session } = useAdminSession();
+
+  const appointments = useQuery(
+    api.appointments.getUpcoming,
+    session ? { token: session.token, businessId, fromMs } : "skip"
+  );
   const updateStatusRaw = useMutation(api.appointments.updateAppointmentStatus);
   const removeWaitingRaw = useMutation(api.waitingList.removeEntry);
 
@@ -404,7 +404,10 @@ export function AppointmentsCalendar({
     }
   };
 
-  const waitingListAll = useQuery(api.waitingList.getForBusiness, { businessId });
+  const waitingListAll = useQuery(
+    api.waitingList.getForBusiness,
+    session ? { token: session.token, businessId } : "skip"
+  );
 
   const [customerDrawer,     setCustomerDrawer]     = useState<{ phone: string; name: string } | null>(null);
   const [waitingOpenDates,   setWaitingOpenDates]   = useState<Set<string>>(new Set());

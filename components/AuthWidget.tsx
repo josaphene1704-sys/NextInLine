@@ -69,6 +69,7 @@ export default function AuthWidget() {
   const router = useRouter();
   const params = useParams();
   const sendOtp = useAction(api.auth.sendOtp);
+  const verifyOtp = useAction(api.auth.verifyOtp);
 
   // On a salon page, keep the profile scoped to that salon (and keep the URL
   // under /salon/<slug>); elsewhere use the global profile.
@@ -126,16 +127,24 @@ export default function AuthWidget() {
     }
   }
 
-  // Step 2 — verify OTP (test code: 1234)
-  function handleOtpSubmit(e: React.FormEvent) {
+  // Step 2 — verify OTP server-side
+  async function handleOtpSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (otp.trim() !== "1234") {
+    setLoading(true);
+    try {
+      const { verified } = await verifyOtp({ phone: phone.trim(), code: otp.trim() });
+      if (!verified) {
+        setError(t(L.wrongCode));
+        return;
+      }
+      setStep("name");
+      setName("");
+    } catch {
       setError(t(L.wrongCode));
-      return;
+    } finally {
+      setLoading(false);
     }
-    setStep("name");
-    setName("");
   }
 
   async function handleResend() {
@@ -209,8 +218,8 @@ export default function AuthWidget() {
           />
         </div>
         {error && <ErrorMsg msg={error} />}
-        <Button type="submit" className="w-full" disabled={otp.length < 4}>
-          {t(L.verify)}
+        <Button type="submit" className="w-full" disabled={otp.length < 4 || loading}>
+          {loading ? t(L.verifying) : t(L.verify)}
         </Button>
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
           <button type="button" onClick={() => { setStep("phone"); setError(null); }}

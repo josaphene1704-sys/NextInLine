@@ -3,13 +3,23 @@ import { v, ConvexError } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requireBossSession, requireBusinessSession } from "./authHelpers";
 import { getSoleBarber } from "./barberHelpers";
+import { isSubscriptionActive } from "./helpers";
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
+
+/** Strips credential fields before a business doc is returned to a client. */
+function toPublicBusiness<T extends { temporaryPassword?: string; adminPassword?: string }>(
+  business: T | null
+) {
+  if (!business) return null;
+  const { temporaryPassword: _tp, adminPassword: _ap, ...safe } = business;
+  return safe;
+}
 
 export const getById = query({
   args: { businessId: v.id("businesses") },
   handler: async (ctx, { businessId }) => {
-    return await ctx.db.get(businessId);
+    return toPublicBusiness(await ctx.db.get(businessId));
   },
 });
 
@@ -24,10 +34,15 @@ export const getAll = query({
 export const getBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
-    return await ctx.db
+    const business = await ctx.db
       .query("businesses")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .unique();
+    const safe = toPublicBusiness(business);
+    if (!safe) return null;
+    // Computed server-side so the booking page can gate on a valid subscription
+    // without duplicating the expiry logic on the client.
+    return { ...safe, subscriptionActive: isSubscriptionActive(safe) };
   },
 });
 
@@ -472,6 +487,8 @@ export const getBillingStatus = query({
       trialEndsAt,
       daysRemaining,
       isTrialExpired: status === "trial" && trialEndsAt !== null && trialEndsAt < Date.now(),
+      // True when the dashboard must be blocked behind an upgrade screen.
+      accessBlocked: !isSubscriptionActive(business),
     };
   },
 });

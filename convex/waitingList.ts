@@ -70,9 +70,11 @@ export const joinWaitingList = mutation({
 
 export const getForBusiness = query({
   args: {
+    token: v.string(),
     businessId: v.id("businesses"),
   },
-  handler: async (ctx, { businessId }) => {
+  handler: async (ctx, { token, businessId }) => {
+    await requireBusinessSession(ctx, token, businessId);
     const entries = await ctx.db
       .query("waitingList")
       .withIndex("by_business_date", (q) => q.eq("businessId", businessId))

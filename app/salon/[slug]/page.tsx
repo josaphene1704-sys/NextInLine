@@ -139,17 +139,19 @@ export default function SalonPage() {
         </div>
       )}
 
-      {business && business.isActive !== false && (
+      {/* Booking is available only when the salon is manually active AND the
+          subscription is valid (server-computed in getBySlug). */}
+      {business && business.isActive !== false && business.subscriptionActive !== false && (
         <BookingWizard businessId={business._id} />
       )}
 
-      {business && business.isActive === false && (
+      {business && (business.isActive === false || business.subscriptionActive === false) && (
         <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
           <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
             <AlertCircle className="w-8 h-8 text-muted-foreground" />
           </div>
           <h2 className="text-lg font-semibold mb-2">העמוד אינו זמין כרגע</h2>
-          <p className="text-sm text-muted-foreground max-w-xs">דף ההזמנות אינו זמין כרגע. אנא נסי שנית מאוחר יותר.</p>
+          <p className="text-sm text-muted-foreground max-w-xs">העסק אינו זמין כרגע לקבלת תורים. אנא נסי שנית מאוחר יותר.</p>
         </div>
       )}
 

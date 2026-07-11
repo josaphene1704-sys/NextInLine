@@ -7,7 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { AdminSessionProvider, useAdminSession } from "@/contexts/AdminSessionContext";
-import { Doc } from "@/convex/_generated/dataModel";
+import { Doc, Id } from "@/convex/_generated/dataModel";
 import { BusinessSettings } from "@/components/admin/BusinessSettings";
 import { ServicesManager } from "@/components/admin/ServicesManager";
 import { SpecialSchedulesManager } from "@/components/admin/SpecialSchedulesManager";
@@ -15,6 +15,7 @@ import { AppointmentsCalendar } from "@/components/admin/AppointmentsCalendar";
 import { PasswordSettings } from "@/components/admin/PasswordSettings";
 import { GalleryManager } from "@/components/admin/GalleryManager";
 import { SubscriptionManager } from "@/components/admin/SubscriptionManager";
+import { Lock } from "lucide-react";
 
 const TABS = [
   { id: "business",  label: "פרטי העסק" },
@@ -77,6 +78,16 @@ function SalonAdminDashboard({
 
   const localMatch = !!session && session.businessId === business._id;
 
+  // Subscription enforcement: an expired trial / unpaid subscription blocks the
+  // whole dashboard behind an upgrade screen. Only queried once the session is
+  // validated (getBillingStatus requires a valid admin token).
+  const billing = useQuery(
+    api.businesses.getBillingStatus,
+    session && sessionValid === true
+      ? { token: session.token, businessId: business._id }
+      : "skip"
+  );
+
   useEffect(() => {
     if (!hydrated) return;
     if (!localMatch) {
@@ -97,6 +108,10 @@ function SalonAdminDashboard({
     );
   }
 
+  // Trial expired / subscription lapsed → lock the dashboard behind an upgrade
+  // screen. Wait for `billing` to load so we never flash the full dashboard.
+  const accessBlocked = billing?.accessBlocked === true;
+
   return (
     <div className="min-h-screen" dir="rtl">
       <header className="sticky top-0 z-20 glass-header px-6 py-4">
@@ -111,6 +126,9 @@ function SalonAdminDashboard({
         </div>
       </header>
 
+      {accessBlocked ? (
+        <UpgradeGate businessId={business._id} />
+      ) : (
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="glass rounded-2xl p-1.5 mb-8 flex gap-1 overflow-x-auto">
           {TABS.map(({ id, label }) => (
@@ -144,6 +162,33 @@ function SalonAdminDashboard({
           />
         )}
       </main>
+      )}
     </div>
+  );
+}
+
+/**
+ * Full-screen upgrade wall shown when the trial has expired or the subscription
+ * lapsed. The salon owner can still reach checkout (via SubscriptionManager)
+ * but every other management surface is hidden until they pay.
+ */
+function UpgradeGate({ businessId }: { businessId: Id<"businesses"> }) {
+  return (
+    <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+      <div className="glass rounded-2xl p-6 text-center space-y-3">
+        <div className="flex justify-center">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Lock className="w-7 h-7 text-primary" />
+          </div>
+        </div>
+        <h2 className="text-xl font-bold">תקופת הניסיון הסתיימה</h2>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          כדי להמשיך לנהל את התורים, היומן והלקוחות שלך — יש לבחור חבילה ולהפעיל את המנוי.
+          לאחר ההפעלה, כל הנתונים שלך ימשיכו להיות זמינים כרגיל.
+        </p>
+      </div>
+
+      <SubscriptionManager businessId={businessId} />
+    </main>
   );
 }

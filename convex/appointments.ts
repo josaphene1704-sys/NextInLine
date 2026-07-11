@@ -1,12 +1,14 @@
 import { internalQuery, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import {
   generateAvailableSlots,
   normalizeDaySchedules,
   dayBoundsFromDateStr,
+  zonedTimeToUtcMs,
   isValidPhone,
+  isSubscriptionActive,
 } from "./helpers";
 import { requireBusinessSession } from "./authHelpers";
 import { getSoleBarber, getSoleBarberReadonly } from "./barberHelpers";
@@ -37,6 +39,10 @@ export const getAvailableSlots = query({
     // 1. Resolve business and its sole barber.
     const business = await ctx.db.get(businessId);
     if (!business) throw new Error("Business not found");
+
+    // Working hours are wall-clock times in the business timezone; every slot
+    // instant below is derived from them in this timezone.
+    const timezone = business.timezone ?? "Asia/Jerusalem";
 
     const barber = await getSoleBarberReadonly(ctx, businessId);
     if (!barber.isActive) {
@@ -91,8 +97,10 @@ export const getAvailableSlots = query({
       workingEnd   = daySchedule.end;
     }
 
-    // 6. Fetch existing non-cancelled appointments for this barber on this day.
-    const { dayStartMs, dayEndMs } = dayBoundsFromDateStr(date);
+    // 6. Fetch existing non-cancelled appointments for this barber on this day
+    //    (the business-local day, matching the slot instants generated below).
+    const dayStartMs = zonedTimeToUtcMs(date, 0, timezone);
+    const dayEndMs   = zonedTimeToUtcMs(date, 24 * 60, timezone);
 
     const existingAppointments = await ctx.db
       .query("appointments")
@@ -123,7 +131,9 @@ export const getAvailableSlots = query({
       workingEnd,
       service.duration,
       slotInterval,
-      bookedWindows
+      bookedWindows,
+      Date.now(),
+      timezone
     );
 
     // Also generate all possible slots (ignoring booked) to derive taken slots.
@@ -133,7 +143,9 @@ export const getAvailableSlots = query({
       workingEnd,
       service.duration,
       slotInterval,
-      []
+      [],
+      Date.now(),
+      timezone
     );
     const availableSet = new Set(slots.map((s) => s.startTime));
     const bookedSlots = allSlots.filter((s) => !availableSet.has(s.startTime));
@@ -142,7 +154,7 @@ export const getAvailableSlots = query({
       slots,
       bookedSlots,
       isWorkingDay: true,
-      timezone: business.timezone ?? "UTC",
+      timezone,
     };
   },
 });
@@ -191,6 +203,16 @@ export const createAppointment = mutation({
     if (!isValidPhone(trimmedPhone)) throw new Error("Invalid phone number format");
     if (startTime <= Date.now()) {
       throw new Error("Cannot book an appointment in the past");
+    }
+
+    // ── Subscription / availability gate ──────────────────────────────────
+    // A salon with a manual kill-switch OR an expired/unpaid subscription
+    // cannot accept bookings. Checked server-side so it holds even if the
+    // client UI is bypassed.
+    const business = await ctx.db.get(businessId);
+    if (!business) throw new Error("Business not found");
+    if (business.isActive === false || !isSubscriptionActive(business)) {
+      throw new ConvexError("העסק אינו זמין כרגע לקבלת תורים");
     }
 
     // ── Resolve entities ──────────────────────────────────────────────────
@@ -379,11 +401,13 @@ export const updateAppointmentStatus = mutation({
 /** Admin: enriched appointments in a time range (past + future). */
 export const getRange = query({
   args: {
+    token: v.string(),
     businessId: v.id("businesses"),
     fromMs: v.number(),
     toMs: v.number(),
   },
-  handler: async (ctx, { businessId, fromMs, toMs }) => {
+  handler: async (ctx, { token, businessId, fromMs, toMs }) => {
+    await requireBusinessSession(ctx, token, businessId);
     const rows = await ctx.db
       .query("appointments")
       .withIndex("by_business_time", (q) =>
@@ -433,10 +457,12 @@ export const getRange = query({
  */
 export const getUpcoming = query({
   args: {
+    token: v.string(),
     businessId: v.id("businesses"),
     fromMs: v.number(),
   },
-  handler: async (ctx, { businessId, fromMs }) => {
+  handler: async (ctx, { token, businessId, fromMs }) => {
+    await requireBusinessSession(ctx, token, businessId);
     const rows = await ctx.db
       .query("appointments")
       .withIndex("by_business_time", (q) =>
@@ -598,9 +624,12 @@ export const rescheduleAppointment = mutation({
 // ─── getById ──────────────────────────────────────────────────────────────────
 
 export const getById = query({
-  args: { appointmentId: v.id("appointments") },
-  handler: async (ctx, { appointmentId }) => {
-    return await ctx.db.get(appointmentId);
+  args: { token: v.string(), appointmentId: v.id("appointments") },
+  handler: async (ctx, { token, appointmentId }) => {
+    const appt = await ctx.db.get(appointmentId);
+    if (!appt) return null;
+    await requireBusinessSession(ctx, token, appt.businessId);
+    return appt;
   },
 });
 
@@ -614,10 +643,12 @@ export const getById = query({
  */
 export const getByBusiness = query({
   args: {
+    token: v.string(),
     businessId: v.id("businesses"),
     date: v.optional(v.string()),
   },
-  handler: async (ctx, { businessId, date }) => {
+  handler: async (ctx, { token, businessId, date }) => {
+    await requireBusinessSession(ctx, token, businessId);
     if (date) {
       const { dayStartMs, dayEndMs } = dayBoundsFromDateStr(date);
 
