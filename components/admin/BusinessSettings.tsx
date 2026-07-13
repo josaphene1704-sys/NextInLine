@@ -50,6 +50,10 @@ export function BusinessSettings({ business }: { business: Doc<"businesses"> }) 
         // the server treats it as an explicit unset.
         logoUrl,
         imageUrl,
+        // Include the announcement so the primary "save changes" button also
+        // persists it — otherwise it only saves via its own dedicated button,
+        // which is easy to miss.
+        announcement,
       });
       setStatus("saved");
       setTimeout(() => setStatus("idle"), 2500);
