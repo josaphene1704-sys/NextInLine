@@ -10,9 +10,10 @@ import BookingWizard from "@/components/booking/BookingWizard";
 import { UpcomingAppointmentsBanner } from "@/components/booking/UpcomingAppointmentsBanner";
 import AuthWidget from "@/components/AuthWidget";
 import { AdminPasswordModal } from "@/components/AdminPasswordModal";
-import { Sparkles, MapPin, Phone, AlertCircle, Megaphone } from "lucide-react";
+import { Sparkles, MapPin, Phone, AlertCircle } from "lucide-react";
 import { GallerySection } from "@/components/GallerySection";
 import { GalleryPreviewButton } from "@/components/GalleryPreviewButton";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import Image from "next/image";
 
 function LanguageToggle() {
@@ -103,13 +104,8 @@ export default function SalonPage() {
                 </span>
               )}
             </div>
-            {business.announcement && (
-              <div className="mt-4 max-w-md mx-auto flex items-start gap-2 text-right bg-primary/10 border border-primary/20 text-foreground rounded-xl px-4 py-3">
-                <Megaphone className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                <p className="text-sm font-medium whitespace-pre-line">{business.announcement}</p>
-              </div>
-            )}
             <GalleryPreviewButton businessId={business._id} onClick={() => setShowGallery(true)} />
+            <AnnouncementBanner text={business.announcement} />
           </div>
         </div>
       )}

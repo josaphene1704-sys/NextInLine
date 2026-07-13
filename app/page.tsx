@@ -11,6 +11,7 @@ import { UpcomingAppointmentsBanner } from "@/components/booking/UpcomingAppoint
 import { Sparkles, MapPin, Phone, AlertCircle } from "lucide-react";
 import { GallerySection } from "@/components/GallerySection";
 import { GalleryPreviewButton } from "@/components/GalleryPreviewButton";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import Image from "next/image";
 
 function LanguageToggle() {
@@ -120,6 +121,9 @@ export default function Home() {
               businessId={business._id}
               onClick={() => setShowGallery(true)}
             />
+
+            {/* Shop announcement — prominent, below the gallery */}
+            <AnnouncementBanner text={business.announcement} />
           </div>
         </div>
       )}
