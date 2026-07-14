@@ -31,16 +31,16 @@ const L = {
   logoutBtn:    { he: "התנתקי",                  ar: "خروج" },
   // step — phone
   phoneTitle:   { he: "מה מספר הטלפון שלך?",    ar: "ما رقم هاتفك؟" },
-  phoneSub:     { he: "נשלח אליך קוד אימות בוואטסאפ", ar: "سنرسل لك رمز تحقق عبر واتساب" },
+  phoneSub:     { he: "נשלח אליך קוד אימות בהודעת SMS", ar: "سنرسل لك رمز تحقق عبر رسالة SMS" },
   phoneLabel:   { he: "מספר טלפון",              ar: "رقم الهاتف" },
   phonePh:      { he: "050-000-0000",             ar: "050-000-0000" },
   sendCode:     { he: "שליחת קוד",               ar: "إرسال الرمز" },
   sending:      { he: "שולח...",                  ar: "جاري الإرسال..." },
   // step — otp
-  otpTitle:     { he: "אימות הוואטסאפ",          ar: "التحقق عبر واتساب" },
-  otpSub:       { he: "קוד אימות נשלח למספר הוואטסאפ שלך", ar: "تم إرسال رمز التحقق إلى واتساب" },
+  otpTitle:     { he: "אימות בהודעה",            ar: "التحقق عبر رسالة SMS" },
+  otpSub:       { he: "קוד אימות נשלח אליך בהודעת SMS", ar: "تم إرسال رمز التحقق عبر رسالة SMS" },
   otpLabel:     { he: "קוד אימות",               ar: "رمز التحقق" },
-  otpPh:        { he: "• • • •",                  ar: "• • • •" },
+  otpPh:        { he: "• • • • • •",              ar: "• • • • • •" },
   verify:       { he: "אמת קוד",                  ar: "تحقق من الرمز" },
   verifying:    { he: "מאמת...",                  ar: "جاري التحقق..." },
   resend:       { he: "שלח קוד מחדש",            ar: "إعادة إرسال الرمز" },
@@ -207,18 +207,18 @@ export default function AuthWidget() {
           <Input
             type="text"
             inputMode="numeric"
-            maxLength={4}
+            maxLength={6}
             dir="ltr"
             value={otp}
             onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "")); setError(null); }}
             placeholder={t(L.otpPh)}
             autoComplete="one-time-code"
-            className="text-center text-2xl tracking-[0.5em] font-bold"
+            className="text-center text-2xl tracking-[0.4em] font-bold"
             autoFocus
           />
         </div>
         {error && <ErrorMsg msg={error} />}
-        <Button type="submit" className="w-full" disabled={otp.length < 4 || loading}>
+        <Button type="submit" className="w-full" disabled={otp.length < 6 || loading}>
           {loading ? t(L.verifying) : t(L.verify)}
         </Button>
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">

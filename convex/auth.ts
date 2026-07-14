@@ -9,23 +9,25 @@ import { ConvexError, v } from "convex/values";
  * TWILIO_VERIFY_SERVICE_SID in the Convex environment) — Twilio generates,
  * delivers and checks the code itself.
  *
- * Local/dev fallback (env vars absent): the server generates a random 4-digit
+ * Local/dev fallback (env vars absent): the server generates a random 6-digit
  * code, stores it in the `otpCodes` table with a short TTL, and prints it to
  * the Convex server log so it can be read during testing. Verification is
  * always server-side — the code never reaches the client.
+ *
+ * Codes are 6 digits to match what Twilio Verify sends by default.
  */
 
 const OTP_TTL_MS = 5 * 60 * 1000; // dev-fallback codes expire after 5 minutes
 const OTP_MAX_ATTEMPTS = 5;       // wrong guesses allowed before the code dies
 
-/** Cryptographically random 4-digit code ("0000"–"9999", unbiased). */
+/** Cryptographically random 6-digit code ("000000"–"999999", unbiased). */
 function generateOtpCode(): string {
-  const limit = 4_294_960_000; // largest multiple of 10,000 that fits in uint32
+  const limit = 4_294_000_000; // largest multiple of 1,000,000 that fits in uint32
   const buf = new Uint32Array(1);
   do {
     crypto.getRandomValues(buf);
   } while (buf[0] >= limit);
-  return String(buf[0] % 10_000).padStart(4, "0");
+  return String(buf[0] % 1_000_000).padStart(6, "0");
 }
 
 /**
@@ -106,7 +108,7 @@ export const verifyOtp = action({
   handler: async (ctx, { phone, code }): Promise<{ verified: boolean }> => {
     const to = toE164(phone);
     const submitted = code.trim();
-    if (!/^\d{4}$/.test(submitted)) return { verified: false };
+    if (!/^\d{6}$/.test(submitted)) return { verified: false };
 
     const twilio = getTwilioConfig();
     if (twilio) {
